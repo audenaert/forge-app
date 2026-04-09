@@ -1,0 +1,5 @@
+{
+  "plugins": [
+    { "path": "/home/ec2-user/projects/forge" }
+  ]
+}
