@@ -1,0 +1,24 @@
+type Organization @node {
+  id: ID! @id
+  name: String!
+  slug: String!
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domains: [Domain!]! @relationship(type: "BELONGS_TO_ORG", direction: IN)
+}
+
+type User @node {
+  id: ID! @id
+  email: String!
+  displayName: String!
+  externalId: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  organization: Organization @relationship(type: "BELONGS_TO_ORG", direction: OUT)
+  domains: [Domain!]! @relationship(type: "MEMBER_OF", direction: OUT, properties: "MemberOfProperties")
+}
+
+type MemberOfProperties @relationshipProperties {
+  role: String!
+  joinedAt: DateTime!
+}

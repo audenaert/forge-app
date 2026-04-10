@@ -2,6 +2,11 @@ import type { Driver } from 'neo4j-driver';
 
 const UNIQUENESS_CONSTRAINTS = [
   'CREATE CONSTRAINT domain_slug IF NOT EXISTS FOR (d:Domain) REQUIRE d.slug IS UNIQUE',
+  'CREATE CONSTRAINT domain_api_key IF NOT EXISTS FOR (d:Domain) REQUIRE d.apiKey IS UNIQUE',
+  'CREATE CONSTRAINT organization_id IF NOT EXISTS FOR (n:Organization) REQUIRE n.id IS UNIQUE',
+  'CREATE CONSTRAINT organization_slug IF NOT EXISTS FOR (n:Organization) REQUIRE n.slug IS UNIQUE',
+  'CREATE CONSTRAINT user_id IF NOT EXISTS FOR (n:User) REQUIRE n.id IS UNIQUE',
+  'CREATE CONSTRAINT user_email IF NOT EXISTS FOR (n:User) REQUIRE n.email IS UNIQUE',
   'CREATE CONSTRAINT objective_id IF NOT EXISTS FOR (n:Objective) REQUIRE n.id IS UNIQUE',
   'CREATE CONSTRAINT opportunity_id IF NOT EXISTS FOR (n:Opportunity) REQUIRE n.id IS UNIQUE',
   'CREATE CONSTRAINT idea_id IF NOT EXISTS FOR (n:Idea) REQUIRE n.id IS UNIQUE',

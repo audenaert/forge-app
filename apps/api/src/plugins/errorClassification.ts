@@ -1,7 +1,7 @@
 import type { ApolloServerPlugin } from '@apollo/server';
 import { GraphQLError } from 'graphql';
 
-type ErrorCode = 'VALIDATION_ERROR' | 'CONSTRAINT_VIOLATION' | 'NOT_FOUND' | 'INTERNAL_ERROR';
+type ErrorCode = 'VALIDATION_ERROR' | 'CONSTRAINT_VIOLATION' | 'NOT_FOUND' | 'UNAUTHORIZED' | 'INTERNAL_ERROR';
 
 interface ClassifiedExtensions {
   code: ErrorCode;
@@ -57,7 +57,7 @@ export function errorClassificationPlugin(): ApolloServerPlugin {
             response.body.singleResult.errors = response.body.singleResult.errors.map(
               (error) => {
                 // Don't reclassify errors that already have our codes
-                if (['VALIDATION_ERROR', 'CONSTRAINT_VIOLATION', 'NOT_FOUND', 'INTERNAL_ERROR'].includes(error.extensions?.code as string)) {
+                if (['VALIDATION_ERROR', 'CONSTRAINT_VIOLATION', 'NOT_FOUND', 'UNAUTHORIZED', 'INTERNAL_ERROR'].includes(error.extensions?.code as string)) {
                   return error;
                 }
 

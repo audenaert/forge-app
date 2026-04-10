@@ -90,3 +90,118 @@ export async function seedDomain(slug: string, name?: string): Promise<string> {
     await session.close();
   }
 }
+
+/**
+ * Generate a unique API key for testing.
+ */
+export function generateApiKey(): string {
+  return `fk_${randomUUID()}`;
+}
+
+/**
+ * Seed a complete tenant: Organization + Domain (with API key) + User.
+ * Returns all created identifiers for use in tests.
+ */
+export async function seedTenant(options?: {
+  orgSlug?: string;
+  orgName?: string;
+  domainSlug?: string;
+  domainName?: string;
+  apiKey?: string;
+  userEmail?: string;
+  userDisplayName?: string;
+  userRole?: string;
+}): Promise<{
+  orgId: string;
+  orgSlug: string;
+  domainId: string;
+  domainSlug: string;
+  apiKey: string;
+  userId: string;
+  userEmail: string;
+}> {
+  const d = getDriver();
+  const session = d.session();
+
+  const orgSlug = options?.orgSlug ?? `org-${randomUUID().slice(0, 8)}`;
+  const domainSlug = options?.domainSlug ?? testDomain();
+  const apiKey = options?.apiKey ?? generateApiKey();
+  const userEmail = options?.userEmail ?? `user-${randomUUID().slice(0, 8)}@test.com`;
+
+  try {
+    const result = await session.run(
+      `
+      CREATE (org:Organization {
+        id: randomUUID(),
+        slug: $orgSlug,
+        name: $orgName,
+        createdAt: datetime()
+      })
+      CREATE (dom:Domain {
+        id: randomUUID(),
+        slug: $domainSlug,
+        name: $domainName,
+        apiKey: $apiKey,
+        createdAt: datetime()
+      })
+      CREATE (usr:User {
+        id: randomUUID(),
+        email: $userEmail,
+        displayName: $userDisplayName,
+        createdAt: datetime()
+      })
+      CREATE (dom)-[:BELONGS_TO_ORG]->(org)
+      CREATE (usr)-[:BELONGS_TO_ORG]->(org)
+      CREATE (usr)-[:MEMBER_OF {role: $userRole, joinedAt: datetime()}]->(dom)
+      RETURN org.id AS orgId, org.slug AS orgSlug,
+             dom.id AS domainId, dom.slug AS domainSlug, dom.apiKey AS apiKey,
+             usr.id AS userId, usr.email AS userEmail
+      `,
+      {
+        orgSlug,
+        orgName: options?.orgName ?? `Org ${orgSlug}`,
+        domainSlug,
+        domainName: options?.domainName ?? `Domain ${domainSlug}`,
+        apiKey,
+        userEmail,
+        userDisplayName: options?.userDisplayName ?? `Test User`,
+        userRole: options?.userRole ?? 'admin',
+      }
+    );
+
+    const record = result.records[0];
+    return {
+      orgId: record.get('orgId'),
+      orgSlug: record.get('orgSlug'),
+      domainId: record.get('domainId'),
+      domainSlug: record.get('domainSlug'),
+      apiKey: record.get('apiKey'),
+      userId: record.get('userId'),
+      userEmail: record.get('userEmail'),
+    };
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Create a Domain node with an API key for auth testing.
+ * Simpler than seedTenant when you just need a domain with a key.
+ */
+export async function seedDomainWithApiKey(
+  slug: string,
+  apiKey: string,
+  name?: string
+): Promise<string> {
+  const d = getDriver();
+  const session = d.session();
+  try {
+    await session.run(
+      'CREATE (d:Domain {id: randomUUID(), slug: $slug, name: $name, apiKey: $apiKey, createdAt: datetime()}) RETURN d',
+      { slug, name: name ?? `Test Domain ${slug}`, apiKey }
+    );
+    return slug;
+  } finally {
+    await session.close();
+  }
+}

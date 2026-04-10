@@ -3,7 +3,7 @@ name: "M3: Multi-tenant & auth"
 type: milestone
 milestone_type: value
 project: graph-backed-artifact-store
-status: planned
+status: in_progress
 target_date: null
 workstream_deliverables:
   - workstream: graph-data-layer

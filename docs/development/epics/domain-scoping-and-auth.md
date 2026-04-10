@@ -1,7 +1,7 @@
 ---
 name: "Domain scoping & auth"
 type: epic
-status: draft
+status: complete
 parent: graph-backed-artifact-store
 children: []
 workstream: graphql-api

@@ -2,7 +2,11 @@ type Domain @node {
   id: ID! @id
   slug: String!
   name: String!
+  apiKey: String
   createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  organization: Organization @relationship(type: "BELONGS_TO_ORG", direction: OUT)
+  users: [User!]! @relationship(type: "MEMBER_OF", direction: IN, properties: "MemberOfProperties")
 }
 
 enum EffortLevel {
