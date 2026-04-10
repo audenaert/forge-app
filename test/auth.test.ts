@@ -7,22 +7,10 @@ import {
   seedTenant,
   seedDomainWithApiKey,
   getDriver,
+  connectToDomain,
 } from './setup.js';
 import { executeGraphQL } from './graphql-client.js';
 import { hashApiKey, extractApiKey } from '../apps/api/src/auth.js';
-
-/** Helper: connect an existing node to a pre-seeded domain via Cypher */
-async function connectToDomain(label: string, nodeId: string, slug: string): Promise<void> {
-  const session = getDriver().session();
-  try {
-    await session.run(
-      `MATCH (n:${label} {id: $nodeId}), (d:Domain {slug: $slug}) MERGE (n)-[:BELONGS_TO]->(d)`,
-      { nodeId, slug }
-    );
-  } finally {
-    await session.close();
-  }
-}
 
 describe('Multi-tenant auth and domain isolation', () => {
   beforeAll(async () => {

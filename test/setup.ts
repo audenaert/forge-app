@@ -192,6 +192,41 @@ export async function seedTenant(options?: {
  * Create a Domain node with an API key for auth testing.
  * Simpler than seedTenant when you just need a domain with a key.
  */
+/**
+ * Connect an existing node to a domain via BELONGS_TO relationship.
+ */
+export async function connectToDomain(label: string, nodeId: string, slug: string): Promise<void> {
+  const session = getDriver().session();
+  try {
+    await session.run(
+      `MATCH (n:${label} {id: $nodeId}), (d:Domain {slug: $slug}) MERGE (n)-[:BELONGS_TO]->(d)`,
+      { nodeId, slug }
+    );
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Connect two nodes with a typed relationship via Cypher.
+ * Used for singular @relationship fields that don't support connect in mutations.
+ */
+export async function connectNodes(
+  fromLabel: string, fromId: string,
+  relType: string,
+  toLabel: string, toId: string
+): Promise<void> {
+  const session = getDriver().session();
+  try {
+    await session.run(
+      `MATCH (a:${fromLabel} {id: $fromId}), (b:${toLabel} {id: $toId}) MERGE (a)-[:${relType}]->(b)`,
+      { fromId, toId }
+    );
+  } finally {
+    await session.close();
+  }
+}
+
 export async function seedDomainWithApiKey(
   slug: string,
   apiKey: string,

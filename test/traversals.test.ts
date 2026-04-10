@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { setupTestEnvironment, teardownTestEnvironment, testDomain, seedDomain } from './setup.js';
+import { setupTestEnvironment, teardownTestEnvironment, testDomain, seedDomain, connectToDomain } from './setup.js';
 import { executeGraphQL } from './graphql-client.js';
 
 describe('Custom traversal queries', () => {
@@ -17,20 +17,6 @@ describe('Custom traversal queries', () => {
     domainSlug = testDomain();
     await seedDomain(domainSlug);
   });
-
-  /** Helper: connect an existing node to a pre-seeded domain via Cypher (since singular rel only supports create inline) */
-  async function connectToDomain(label: string, nodeId: string, slug: string): Promise<void> {
-    const { getDriver } = await import('./setup.js');
-    const session = getDriver().session();
-    try {
-      await session.run(
-        `MATCH (n:${label} {id: $nodeId}), (d:Domain {slug: $slug}) MERGE (n)-[:BELONGS_TO]->(d)`,
-        { nodeId, slug }
-      );
-    } finally {
-      await session.close();
-    }
-  }
 
   /**
    * Seed a branching graph for opportunitySubgraph tests.

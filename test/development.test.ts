@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
-import { setupTestEnvironment, teardownTestEnvironment, testDomain, seedDomain, getDriver } from './setup.js';
+import { setupTestEnvironment, teardownTestEnvironment, testDomain, seedDomain, connectToDomain, connectNodes } from './setup.js';
 import { executeGraphQL } from './graphql-client.js';
 
 describe('Development artifact types (M2)', () => {
@@ -17,36 +17,6 @@ describe('Development artifact types (M2)', () => {
     domainSlug = testDomain();
     await seedDomain(domainSlug);
   });
-
-  /** Connect an existing node to a pre-seeded domain via Cypher */
-  async function connectToDomain(label: string, nodeId: string, slug: string): Promise<void> {
-    const session = getDriver().session();
-    try {
-      await session.run(
-        `MATCH (n:${label} {id: $nodeId}), (d:Domain {slug: $slug}) MERGE (n)-[:BELONGS_TO]->(d)`,
-        { nodeId, slug }
-      );
-    } finally {
-      await session.close();
-    }
-  }
-
-  /** Connect two nodes via a relationship type using Cypher (for singular @relationship fields) */
-  async function connectNodes(
-    fromLabel: string, fromId: string,
-    relType: string,
-    toLabel: string, toId: string
-  ): Promise<void> {
-    const session = getDriver().session();
-    try {
-      await session.run(
-        `MATCH (a:${fromLabel} {id: $fromId}), (b:${toLabel} {id: $toId}) MERGE (a)-[:${relType}]->(b)`,
-        { fromId, toId }
-      );
-    } finally {
-      await session.close();
-    }
-  }
 
   // =====================================================================
   // CRUD for all development types
