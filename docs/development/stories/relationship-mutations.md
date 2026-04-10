@@ -1,7 +1,7 @@
 ---
 name: "Relationship mutations"
 type: story
-status: draft
+status: complete
 parent: discovery-artifact-api
 children:
   - test-relationship-mutations

@@ -1,0 +1,20 @@
+{
+  "name": "@forge-workspace/graph",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./driver": "./src/driver.ts",
+    "./schema": "./src/schema.ts",
+    "./constraints": "./src/constraints.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@neo4j/graphql": "^7.0.0",
+    "graphql": "^16.10.0",
+    "neo4j-driver": "^5.27.0"
+  }
+}

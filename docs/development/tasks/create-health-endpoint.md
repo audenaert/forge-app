@@ -1,7 +1,7 @@
 ---
 name: "Create health check endpoint"
 type: task
-status: todo
+status: done
 parent: health-check-and-logging
 workstream: graphql-api
 ---

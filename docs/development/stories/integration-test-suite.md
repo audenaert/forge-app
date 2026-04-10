@@ -1,7 +1,7 @@
 ---
 name: "Integration test suite"
 type: story
-status: draft
+status: complete
 parent: discovery-artifact-api
 children:
   - setup-vitest-config

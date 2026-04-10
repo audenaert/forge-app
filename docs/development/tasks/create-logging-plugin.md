@@ -1,7 +1,7 @@
 ---
 name: "Create query timing and startup logging"
 type: task
-status: todo
+status: done
 parent: health-check-and-logging
 workstream: graphql-api
 ---

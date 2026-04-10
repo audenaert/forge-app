@@ -1,7 +1,7 @@
 ---
 name: "Test traversal queries"
 type: task
-status: todo
+status: done
 parent: custom-traversal-queries
 workstream: graph-data-layer
 ---

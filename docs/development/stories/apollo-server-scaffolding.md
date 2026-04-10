@@ -1,7 +1,7 @@
 ---
 name: "Apollo Server scaffolding"
 type: story
-status: draft
+status: complete
 parent: api-foundation
 children:
   - scaffold-apps-api

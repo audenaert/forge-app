@@ -1,7 +1,7 @@
 ---
 name: "Create driver.ts module"
 type: task
-status: todo
+status: done
 parent: neo4j-driver-connection
 workstream: graph-data-layer
 ---

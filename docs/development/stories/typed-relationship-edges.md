@@ -1,7 +1,7 @@
 ---
 name: "Typed relationship edges"
 type: story
-status: draft
+status: complete
 parent: discovery-graph-schema
 children:
   - test-relationship-traversal

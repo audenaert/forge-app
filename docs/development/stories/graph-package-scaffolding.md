@@ -1,7 +1,7 @@
 ---
 name: "packages/graph package scaffolding"
 type: story
-status: draft
+status: complete
 parent: infrastructure-and-connection
 children:
   - create-tsconfig-base

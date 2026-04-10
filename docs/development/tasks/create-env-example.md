@@ -1,7 +1,7 @@
 ---
 name: "Create .env.example"
 type: task
-status: todo
+status: done
 parent: docker-compose-neo4j
 workstream: graph-data-layer
 ---

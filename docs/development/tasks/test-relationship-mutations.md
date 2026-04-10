@@ -1,7 +1,7 @@
 ---
 name: "Test relationship mutations via GraphQL"
 type: task
-status: todo
+status: done
 parent: relationship-mutations
 workstream: graphql-api
 ---

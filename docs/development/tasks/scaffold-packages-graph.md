@@ -1,7 +1,7 @@
 ---
 name: "Scaffold packages/graph package"
 type: task
-status: todo
+status: done
 parent: graph-package-scaffolding
 workstream: graph-data-layer
 ---

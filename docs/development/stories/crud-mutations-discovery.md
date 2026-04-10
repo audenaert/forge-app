@@ -1,7 +1,7 @@
 ---
 name: "CRUD mutations for discovery types"
 type: story
-status: draft
+status: complete
 parent: discovery-artifact-api
 children:
   - test-crud-all-types

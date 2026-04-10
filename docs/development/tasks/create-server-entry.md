@@ -1,7 +1,7 @@
 ---
 name: "Create server.ts entry point"
 type: task
-status: todo
+status: done
 parent: apollo-server-scaffolding
 workstream: graphql-api
 ---

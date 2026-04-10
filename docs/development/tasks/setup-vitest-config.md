@@ -1,7 +1,7 @@
 ---
 name: "Set up Vitest configuration"
 type: task
-status: todo
+status: done
 parent: integration-test-suite
 workstream: graphql-api
 ---

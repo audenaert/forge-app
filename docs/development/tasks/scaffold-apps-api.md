@@ -1,7 +1,7 @@
 ---
 name: "Scaffold apps/api package"
 type: task
-status: todo
+status: done
 parent: apollo-server-scaffolding
 workstream: graphql-api
 ---

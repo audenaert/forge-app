@@ -1,7 +1,7 @@
 ---
 name: "Create error classification Apollo plugin"
 type: task
-status: todo
+status: done
 parent: error-classification-plugin
 workstream: graphql-api
 ---

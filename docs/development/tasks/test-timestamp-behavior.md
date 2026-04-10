@@ -1,7 +1,7 @@
 ---
 name: "Test @timestamp behavior"
 type: task
-status: todo
+status: done
 parent: crud-mutations-discovery
 workstream: graphql-api
 ---

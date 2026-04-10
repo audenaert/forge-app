@@ -1,7 +1,7 @@
 ---
 name: "Test bidirectional relationship traversal"
 type: task
-status: todo
+status: done
 parent: typed-relationship-edges
 workstream: graph-data-layer
 ---

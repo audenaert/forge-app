@@ -1,7 +1,7 @@
 ---
 name: "Discovery type definitions in SDL"
 type: story
-status: draft
+status: complete
 parent: discovery-graph-schema
 children:
   - create-common-graphql

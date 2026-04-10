@@ -1,7 +1,7 @@
 ---
 name: "Docker Compose with Neo4j"
 type: story
-status: draft
+status: complete
 parent: infrastructure-and-connection
 children:
   - create-docker-compose

@@ -1,0 +1,14 @@
+{
+  "name": "@forge-workspace/api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "@apollo/server": "^4.11.0",
+    "@forge-workspace/graph": "*",
+    "graphql": "^16.10.0"
+  }
+}

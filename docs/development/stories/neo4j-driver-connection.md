@@ -1,7 +1,7 @@
 ---
 name: "Neo4j driver with connection management"
 type: story
-status: draft
+status: complete
 parent: infrastructure-and-connection
 children:
   - create-driver-module

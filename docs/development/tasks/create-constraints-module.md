@@ -1,7 +1,7 @@
 ---
 name: "Create constraints initialization module"
 type: task
-status: todo
+status: done
 parent: schema-constraint-initialization
 workstream: graph-data-layer
 ---

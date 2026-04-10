@@ -1,7 +1,7 @@
 ---
 name: "Schema constraint initialization"
 type: story
-status: draft
+status: complete
 parent: infrastructure-and-connection
 children:
   - create-constraints-module

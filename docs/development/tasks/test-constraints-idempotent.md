@@ -1,7 +1,7 @@
 ---
 name: "Test constraint initialization is idempotent"
 type: task
-status: todo
+status: done
 parent: schema-constraint-initialization
 workstream: graph-data-layer
 ---

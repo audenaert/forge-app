@@ -9,10 +9,17 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "test": "turbo test",
+    "test": "vitest run",
     "lint": "turbo lint"
   },
   "engines": {
     "node": ">=22"
+  },
+  "devDependencies": {
+    "@testcontainers/neo4j": "^11.14.0",
+    "testcontainers": "^11.14.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
   }
 }

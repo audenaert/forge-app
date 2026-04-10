@@ -1,7 +1,7 @@
 ---
 name: "Error classification plugin"
 type: story
-status: draft
+status: complete
 parent: api-foundation
 children:
   - create-error-plugin

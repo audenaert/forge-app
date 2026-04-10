@@ -1,7 +1,7 @@
 ---
 name: "Test CRUD for all 5 discovery types"
 type: task
-status: todo
+status: done
 parent: crud-mutations-discovery
 workstream: graphql-api
 ---

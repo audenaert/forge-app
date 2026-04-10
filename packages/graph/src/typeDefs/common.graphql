@@ -1,0 +1,12 @@
+type Domain @node {
+  id: ID! @id
+  slug: String!
+  name: String!
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+}
+
+enum EffortLevel {
+  LOW
+  MEDIUM
+  HIGH
+}

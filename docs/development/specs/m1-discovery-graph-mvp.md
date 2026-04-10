@@ -1,7 +1,7 @@
 ---
 name: "M1: Discovery graph MVP"
 type: spec
-status: draft
+status: complete
 for: graph-backed-artifact-store
 adrs:
   - adr-001-neo4j-as-graph-database

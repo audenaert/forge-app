@@ -1,7 +1,7 @@
 ---
 name: "Test error classification"
 type: task
-status: todo
+status: done
 parent: error-classification-plugin
 workstream: graphql-api
 ---

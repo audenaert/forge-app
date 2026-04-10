@@ -1,7 +1,7 @@
 ---
 name: "Health check and logging"
 type: story
-status: draft
+status: complete
 parent: api-foundation
 children:
   - create-health-endpoint

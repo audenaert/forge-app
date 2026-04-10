@@ -1,7 +1,7 @@
 ---
 name: "Custom traversal queries"
 type: story
-status: draft
+status: complete
 parent: discovery-graph-schema
 children:
   - add-traversal-return-types

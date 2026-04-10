@@ -1,7 +1,7 @@
 ---
 name: "Add traversal return types to SDL"
 type: task
-status: todo
+status: done
 parent: custom-traversal-queries
 workstream: graph-data-layer
 ---

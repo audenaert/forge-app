@@ -1,7 +1,7 @@
 ---
 name: "Test BELONGS_TO domain scoping"
 type: task
-status: todo
+status: done
 parent: typed-relationship-edges
 workstream: graph-data-layer
 ---

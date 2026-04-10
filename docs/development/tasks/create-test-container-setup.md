@@ -1,7 +1,7 @@
 ---
 name: "Create test container setup"
 type: task
-status: todo
+status: done
 parent: integration-test-suite
 workstream: graphql-api
 ---

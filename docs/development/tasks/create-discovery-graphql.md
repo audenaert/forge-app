@@ -1,7 +1,7 @@
 ---
 name: "Create discovery.graphql"
 type: task
-status: todo
+status: done
 parent: discovery-type-definitions
 workstream: graph-data-layer
 ---

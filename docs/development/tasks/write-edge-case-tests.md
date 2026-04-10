@@ -1,7 +1,7 @@
 ---
 name: "Write edge case and error path tests"
 type: task
-status: todo
+status: done
 parent: integration-test-suite
 workstream: graphql-api
 ---

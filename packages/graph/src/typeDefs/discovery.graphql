@@ -1,0 +1,207 @@
+enum ObjectiveStatus { ACTIVE PAUSED ACHIEVED ABANDONED }
+enum OpportunityStatus { ACTIVE PAUSED RESOLVED ABANDONED }
+enum IdeaStatus { DRAFT EXPLORING VALIDATED READY_FOR_BUILD BUILDING SHIPPED }
+enum AssumptionStatus { UNTESTED VALIDATED INVALIDATED }
+enum AssumptionImportance { HIGH MEDIUM LOW }
+enum AssumptionEvidence { HIGH MEDIUM LOW }
+enum ExperimentStatus { PLANNED RUNNING COMPLETE }
+enum ExperimentMethod {
+  USER_INTERVIEW PROTOTYPE_TEST FAKE_DOOR
+  CONCIERGE_MVP DATA_ANALYSIS AB_TEST SURVEY
+}
+enum ExperimentResult { VALIDATED INVALIDATED INCONCLUSIVE }
+
+type Objective @node {
+  id: ID! @id
+  name: String!
+  status: ObjectiveStatus!
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  supportedBy: [Opportunity!]! @relationship(type: "SUPPORTS", direction: IN)
+}
+
+type Opportunity @node {
+  id: ID! @id
+  name: String!
+  status: OpportunityStatus!
+  hmw: String
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  supports: [Objective!]! @relationship(type: "SUPPORTS", direction: OUT)
+  addressedBy: [Idea!]! @relationship(type: "ADDRESSES", direction: IN)
+}
+
+type Idea @node {
+  id: ID! @id
+  name: String!
+  status: IdeaStatus!
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  addresses: [Opportunity!]! @relationship(type: "ADDRESSES", direction: OUT)
+  assumptions: [Assumption!]! @relationship(type: "ASSUMED_BY", direction: IN)
+}
+
+type Assumption @node {
+  id: ID! @id
+  name: String!
+  status: AssumptionStatus!
+  importance: AssumptionImportance!
+  evidence: AssumptionEvidence!
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  assumedBy: [Idea!]! @relationship(type: "ASSUMED_BY", direction: OUT)
+  testedBy: [Experiment!]! @relationship(type: "TESTS", direction: IN)
+}
+
+type Experiment @node {
+  id: ID! @id
+  name: String!
+  status: ExperimentStatus!
+  method: ExperimentMethod
+  successCriteria: String
+  duration: String
+  effort: EffortLevel
+  result: ExperimentResult
+  learnings: String
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  tests: [Assumption!]! @relationship(type: "TESTS", direction: OUT)
+}
+
+# --- Traversal return types (non-@node, computed projections) ---
+
+type ExperimentSummary {
+  id: ID!
+  name: String!
+  status: ExperimentStatus!
+  method: ExperimentMethod
+  result: ExperimentResult
+}
+
+type AssumptionWithExperiments {
+  id: ID!
+  name: String!
+  status: AssumptionStatus!
+  importance: AssumptionImportance!
+  evidence: AssumptionEvidence!
+  experiments: [ExperimentSummary!]!
+}
+
+type IdeaWithAssumptions {
+  id: ID!
+  name: String!
+  status: IdeaStatus!
+  assumptions: [AssumptionWithExperiments!]!
+}
+
+type OpportunitySubgraph {
+  id: ID!
+  name: String!
+  status: OpportunityStatus!
+  hmw: String
+  ideas: [IdeaWithAssumptions!]!
+}
+
+type DiscoveryHealth {
+  totalObjectives: Int!
+  totalOpportunities: Int!
+  totalIdeas: Int!
+  totalAssumptions: Int!
+  totalExperiments: Int!
+  untestedHighImportanceAssumptions: Int!
+  ideasWithNoAssumptions: Int!
+  orphanedOpportunities: Int!
+}
+
+# --- Custom traversal queries ---
+
+type Query {
+  opportunitySubgraph(opportunityId: ID!, domainSlug: String!): OpportunitySubgraph
+    @cypher(
+      statement: """
+      MATCH (opp:Opportunity {id: $opportunityId})-[:BELONGS_TO]->(:Domain {slug: $domainSlug})
+      CALL {
+        WITH opp
+        OPTIONAL MATCH (opp)<-[:ADDRESSES]-(idea:Idea)
+        CALL {
+          WITH idea
+          OPTIONAL MATCH (idea)<-[:ASSUMED_BY]-(assumption:Assumption)
+          CALL {
+            WITH assumption
+            OPTIONAL MATCH (assumption)<-[:TESTS]-(exp:Experiment)
+            RETURN collect(exp { .id, .name, .status, .method, .result }) AS experiments
+          }
+          RETURN collect(assumption { .id, .name, .status, .importance, .evidence, experiments: experiments }) AS assumptions
+        }
+        RETURN collect(idea { .id, .name, .status, assumptions: assumptions }) AS ideas
+      }
+      RETURN opp { .id, .name, .status, .hmw, ideas: ideas } AS result
+      """
+      columnName: "result"
+    )
+
+  untestedAssumptions(domainSlug: String!, minImportance: String): [Assumption!]!
+    @cypher(
+      statement: """
+      MATCH (a:Assumption)-[:BELONGS_TO]->(:Domain {slug: $domainSlug})
+      WHERE a.status = 'UNTESTED'
+        AND (CASE WHEN $minImportance IS NOT NULL THEN a.importance = $minImportance ELSE true END)
+        AND NOT EXISTS { (a)<-[:TESTS]-(:Experiment) }
+      RETURN a
+      ORDER BY a.importance DESC, a.createdAt ASC
+      """
+      columnName: "a"
+    )
+
+  discoveryHealth(domainSlug: String!): DiscoveryHealth
+    @cypher(
+      statement: """
+      MATCH (d:Domain {slug: $domainSlug})
+      CALL { WITH d MATCH (n:Objective)-[:BELONGS_TO]->(d) RETURN count(n) AS totalObjectives }
+      CALL { WITH d MATCH (n:Opportunity)-[:BELONGS_TO]->(d) RETURN count(n) AS totalOpportunities }
+      CALL { WITH d MATCH (n:Idea)-[:BELONGS_TO]->(d) RETURN count(n) AS totalIdeas }
+      CALL { WITH d MATCH (n:Assumption)-[:BELONGS_TO]->(d) RETURN count(n) AS totalAssumptions }
+      CALL { WITH d MATCH (n:Experiment)-[:BELONGS_TO]->(d) RETURN count(n) AS totalExperiments }
+      CALL {
+        WITH d
+        MATCH (a:Assumption)-[:BELONGS_TO]->(d)
+        WHERE a.status = 'UNTESTED' AND a.importance = 'HIGH'
+          AND NOT EXISTS { (a)<-[:TESTS]-(:Experiment) }
+        RETURN count(a) AS untestedHighImportanceAssumptions
+      }
+      CALL {
+        WITH d
+        MATCH (i:Idea)-[:BELONGS_TO]->(d)
+        WHERE NOT EXISTS { (i)<-[:ASSUMED_BY]-(:Assumption) }
+        RETURN count(i) AS ideasWithNoAssumptions
+      }
+      CALL {
+        WITH d
+        MATCH (o:Opportunity)-[:BELONGS_TO]->(d)
+        WHERE NOT EXISTS { (o)-[:SUPPORTS]->(:Objective) }
+        RETURN count(o) AS orphanedOpportunities
+      }
+      RETURN {
+        totalObjectives: totalObjectives,
+        totalOpportunities: totalOpportunities,
+        totalIdeas: totalIdeas,
+        totalAssumptions: totalAssumptions,
+        totalExperiments: totalExperiments,
+        untestedHighImportanceAssumptions: untestedHighImportanceAssumptions,
+        ideasWithNoAssumptions: ideasWithNoAssumptions,
+        orphanedOpportunities: orphanedOpportunities
+      } AS result
+      """
+      columnName: "result"
+    )
+}

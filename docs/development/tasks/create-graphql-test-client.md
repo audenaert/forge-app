@@ -1,7 +1,7 @@
 ---
 name: "Create GraphQL test client helper"
 type: task
-status: todo
+status: done
 parent: integration-test-suite
 workstream: graphql-api
 ---
