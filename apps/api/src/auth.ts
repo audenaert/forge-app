@@ -1,11 +1,20 @@
 import type { Driver } from 'neo4j-driver';
+import { createHash } from 'node:crypto';
 
 interface DomainLookupResult {
   slug: string;
 }
 
 /**
+ * Hash an API key with SHA-256 so we never store or query plaintext keys.
+ */
+export function hashApiKey(key: string): string {
+  return createHash('sha256').update(key).digest('hex');
+}
+
+/**
  * Resolve domain slug from an API key by querying Neo4j.
+ * The incoming key is hashed before lookup — the DB stores only hashes.
  * Returns the domain slug if found, null otherwise.
  */
 export async function resolveDomainFromApiKey(
@@ -14,9 +23,10 @@ export async function resolveDomainFromApiKey(
 ): Promise<string | null> {
   const session = driver.session();
   try {
+    const hashedKey = hashApiKey(apiKey);
     const result = await session.run(
       'MATCH (d:Domain {apiKey: $apiKey}) RETURN d.slug AS slug LIMIT 1',
-      { apiKey }
+      { apiKey: hashedKey }
     );
     if (result.records.length === 0) return null;
     const record = result.records[0].get('slug') as string;

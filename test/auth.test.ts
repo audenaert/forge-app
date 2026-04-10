@@ -9,6 +9,7 @@ import {
   getDriver,
 } from './setup.js';
 import { executeGraphQL } from './graphql-client.js';
+import { hashApiKey } from '../apps/api/src/auth.js';
 
 /** Helper: connect an existing node to a pre-seeded domain via Cypher */
 async function connectToDomain(label: string, nodeId: string, slug: string): Promise<void> {
@@ -120,13 +121,13 @@ describe('Multi-tenant auth and domain isolation', () => {
     it('should create full tenant hierarchy via seedTenant', async () => {
       const tenant = await seedTenant();
 
-      // Verify Organization -> Domain relationship
+      // Verify Organization -> Domain relationship (apiKey is not selectable via GraphQL)
       const { data: orgData, errors: orgErrors } = await executeGraphQL(`
         query {
           organizations(where: { slug: { eq: "${tenant.orgSlug}" } }) {
             id
             slug
-            domains { slug apiKey }
+            domains { slug }
           }
         }
       `);
@@ -135,7 +136,6 @@ describe('Multi-tenant auth and domain isolation', () => {
       expect(orgData!.organizations).toHaveLength(1);
       expect(orgData!.organizations[0].domains).toHaveLength(1);
       expect(orgData!.organizations[0].domains[0].slug).toBe(tenant.domainSlug);
-      expect(orgData!.organizations[0].domains[0].apiKey).toBe(tenant.apiKey);
 
       // Verify Domain -> Users relationship via connection (to get edge properties)
       const { data: domData, errors: domErrors } = await executeGraphQL(`
@@ -309,15 +309,16 @@ describe('Multi-tenant auth and domain isolation', () => {
 
   describe('API key resolution', () => {
     it('should resolve domain slug from a valid API key via Cypher', async () => {
-      const apiKey = generateApiKey();
+      const rawApiKey = generateApiKey();
       const slug = testDomain();
-      await seedDomainWithApiKey(slug, apiKey);
+      await seedDomainWithApiKey(slug, rawApiKey);
 
+      // The DB stores the hashed key, so we must hash before lookup
       const session = getDriver().session();
       try {
         const result = await session.run(
           'MATCH (d:Domain {apiKey: $apiKey}) RETURN d.slug AS slug',
-          { apiKey }
+          { apiKey: hashApiKey(rawApiKey) }
         );
         expect(result.records).toHaveLength(1);
         expect(result.records[0].get('slug')).toBe(slug);
@@ -331,7 +332,7 @@ describe('Multi-tenant auth and domain isolation', () => {
       try {
         const result = await session.run(
           'MATCH (d:Domain {apiKey: $apiKey}) RETURN d.slug AS slug',
-          { apiKey: 'fk_nonexistent' }
+          { apiKey: hashApiKey('fk_nonexistent') }
         );
         expect(result.records).toHaveLength(0);
       } finally {
@@ -339,20 +340,61 @@ describe('Multi-tenant auth and domain isolation', () => {
       }
     });
 
-    it('should enforce unique API key per domain', async () => {
-      const apiKey = generateApiKey();
+    it('should enforce unique API key per domain (hashed key collides)', async () => {
+      const rawApiKey = generateApiKey();
       const slug1 = testDomain();
       const slug2 = testDomain();
-      await seedDomainWithApiKey(slug1, apiKey);
+      await seedDomainWithApiKey(slug1, rawApiKey);
 
+      // Storing the same raw key again hashes to the same value, violating the uniqueness constraint
       const session = getDriver().session();
       try {
         await expect(
           session.run(
             'CREATE (d:Domain {id: randomUUID(), slug: $slug, name: "Dup Key", apiKey: $apiKey, createdAt: datetime()}) RETURN d',
-            { slug: slug2, apiKey }
+            { slug: slug2, apiKey: hashApiKey(rawApiKey) }
           )
         ).rejects.toThrow();
+      } finally {
+        await session.close();
+      }
+    });
+
+    it('should not expose apiKey field in GraphQL queries', async () => {
+      const tenant = await seedTenant();
+
+      // Attempting to query the apiKey field should produce a validation error
+      const { errors } = await executeGraphQL(`
+        query {
+          domains(where: { slug: { eq: "${tenant.domainSlug}" } }) {
+            slug
+            apiKey
+          }
+        }
+      `);
+
+      expect(errors).toBeDefined();
+      expect(errors!.length).toBeGreaterThan(0);
+      // The field should not be queryable at all
+      const msg = errors![0].message;
+      expect(msg).toMatch(/apiKey/);
+    });
+
+    it('should store hashed key in DB but allow auth with raw key', async () => {
+      const rawApiKey = generateApiKey();
+      const slug = testDomain();
+      await seedDomainWithApiKey(slug, rawApiKey);
+
+      // Verify the DB contains the hash, not the raw key
+      const session = getDriver().session();
+      try {
+        const result = await session.run(
+          'MATCH (d:Domain {slug: $slug}) RETURN d.apiKey AS storedKey',
+          { slug }
+        );
+        const storedKey = result.records[0].get('storedKey') as string;
+        expect(storedKey).not.toBe(rawApiKey);
+        expect(storedKey).toBe(hashApiKey(rawApiKey));
       } finally {
         await session.close();
       }

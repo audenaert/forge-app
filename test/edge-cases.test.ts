@@ -68,10 +68,26 @@ describe('Edge cases and error paths', () => {
         await session.close();
       }
     });
+
+    it('should return CONSTRAINT_VIOLATION code for duplicate domain slug via GraphQL', async () => {
+      const slug = testDomain();
+      await seedDomain(slug);
+
+      // Create a second domain with the same slug via GraphQL mutation
+      const { errors } = await executeGraphQL(`
+        mutation {
+          createDomains(input: [{ slug: "${slug}", name: "Duplicate" }]) { domains { id } }
+        }
+      `);
+
+      expect(errors).toBeDefined();
+      expect(errors!.length).toBeGreaterThan(0);
+      expect(errors![0].extensions?.code).toBe('CONSTRAINT_VIOLATION');
+    });
   });
 
   describe('Invalid enum values', () => {
-    it('should return error for invalid enum value', async () => {
+    it('should return VALIDATION_ERROR for invalid enum value', async () => {
       const { errors } = await executeGraphQL(`
         mutation {
           createObjectives(input: [{ name: "Bad Status", status: INVALID_STATUS }]) { objectives { id } }
@@ -79,6 +95,24 @@ describe('Edge cases and error paths', () => {
       `);
       expect(errors).toBeDefined();
       expect(errors!.length).toBeGreaterThan(0);
+      expect(errors![0].extensions?.code).toBe('VALIDATION_ERROR');
+    });
+  });
+
+  describe('Error classification', () => {
+    it('all error responses include extensions.code', async () => {
+      // Trigger a validation error (missing required field: status is required for Objective)
+      const { errors } = await executeGraphQL(`
+        mutation {
+          createObjectives(input: [{ name: "No Status" }]) { objectives { id } }
+        }
+      `);
+
+      expect(errors).toBeDefined();
+      for (const error of errors!) {
+        expect(error.extensions?.code).toBeDefined();
+        expect(typeof error.extensions?.code).toBe('string');
+      }
     });
   });
 

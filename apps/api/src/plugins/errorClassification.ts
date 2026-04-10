@@ -12,27 +12,55 @@ interface ClassifiedExtensions {
  * Classify a GraphQL error into one of our standard error codes.
  * Inspects the original error to determine the category.
  */
+/**
+ * Walk the error cause chain looking for a Neo4j error code.
+ * @neo4j/graphql may wrap the original Neo4jError in one or more layers.
+ */
+function findNeo4jCode(error: unknown): { code?: string; message?: string } | null {
+  let current: unknown = error;
+  const seen = new Set<unknown>();
+  while (current && typeof current === 'object' && !seen.has(current)) {
+    seen.add(current);
+    const obj = current as Record<string, unknown>;
+    if (typeof obj.code === 'string' && obj.code.startsWith('Neo.')) {
+      return { code: obj.code, message: obj.message as string | undefined };
+    }
+    // Check nested cause / originalError
+    current = obj.cause ?? obj.originalError ?? null;
+  }
+  return null;
+}
+
 function classifyError(error: GraphQLError): ClassifiedExtensions {
   const originalError = error.originalError as Record<string, unknown> | undefined;
 
   // Neo4j constraint violation (Neo4jError with code Neo.ClientError.Schema.ConstraintValidationFailed)
+  // Walk the error chain since @neo4j/graphql may wrap the original error
   if (originalError && typeof originalError === 'object') {
-    const neo4jCode = (originalError as { code?: string }).code;
-    const message = originalError.message as string | undefined;
+    const neo4j = findNeo4jCode(originalError);
 
-    if (neo4jCode === 'Neo.ClientError.Schema.ConstraintValidationFailed') {
-      // Extract constraint name from the error message
-      const constraintMatch = message?.match(/constraint (\S+)/i);
+    if (neo4j?.code === 'Neo.ClientError.Schema.ConstraintValidationFailed') {
+      const constraintMatch = neo4j.message?.match(/constraint (\S+)/i);
       return {
         code: 'CONSTRAINT_VIOLATION',
         ...(constraintMatch?.[1] ? { constraint: constraintMatch[1] } : {}),
       };
     }
 
-    // Neo4j not found errors
-    if (neo4jCode === 'Neo.ClientError.Statement.EntityNotFound') {
+    if (neo4j?.code === 'Neo.ClientError.Statement.EntityNotFound') {
       return { code: 'NOT_FOUND' };
     }
+  }
+
+  // Fallback: check the error message for constraint violation indicators.
+  // @neo4j/graphql may strip the original error but preserve the message.
+  if (error.message?.match(/constraint\s+validation\s+failed/i) ||
+      (error.message?.match(/constraint/i) && error.message?.match(/already exists/i))) {
+    const constraintMatch = error.message.match(/constraint (\S+)/i);
+    return {
+      code: 'CONSTRAINT_VIOLATION',
+      ...(constraintMatch?.[1] ? { constraint: constraintMatch[1] } : {}),
+    };
   }
 
   // GraphQL validation errors come with specific extension codes

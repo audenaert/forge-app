@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { ApolloServer } from '@apollo/server';
 import { createSchema } from '@forge-workspace/graph';
 import { applyConstraints } from '@forge-workspace/graph';
+import { errorClassificationPlugin } from '../apps/api/src/plugins/errorClassification.js';
+import { hashApiKey } from '../apps/api/src/auth.js';
 import type { GraphQLSchema } from 'graphql';
 
 let container: StartedNeo4jContainer | undefined;
@@ -54,7 +56,7 @@ export async function setupTestEnvironment(): Promise<void> {
 
   schema = await createSchema(driver);
 
-  server = new ApolloServer({ schema });
+  server = new ApolloServer({ schema, plugins: [errorClassificationPlugin()] });
   await server.start();
 }
 
@@ -125,7 +127,8 @@ export async function seedTenant(options?: {
 
   const orgSlug = options?.orgSlug ?? `org-${randomUUID().slice(0, 8)}`;
   const domainSlug = options?.domainSlug ?? testDomain();
-  const apiKey = options?.apiKey ?? generateApiKey();
+  const rawApiKey = options?.apiKey ?? generateApiKey();
+  const hashedKey = hashApiKey(rawApiKey);
   const userEmail = options?.userEmail ?? `user-${randomUUID().slice(0, 8)}@test.com`;
 
   try {
@@ -154,7 +157,7 @@ export async function seedTenant(options?: {
       CREATE (usr)-[:BELONGS_TO_ORG]->(org)
       CREATE (usr)-[:MEMBER_OF {role: $userRole, joinedAt: datetime()}]->(dom)
       RETURN org.id AS orgId, org.slug AS orgSlug,
-             dom.id AS domainId, dom.slug AS domainSlug, dom.apiKey AS apiKey,
+             dom.id AS domainId, dom.slug AS domainSlug,
              usr.id AS userId, usr.email AS userEmail
       `,
       {
@@ -162,7 +165,7 @@ export async function seedTenant(options?: {
         orgName: options?.orgName ?? `Org ${orgSlug}`,
         domainSlug,
         domainName: options?.domainName ?? `Domain ${domainSlug}`,
-        apiKey,
+        apiKey: hashedKey,
         userEmail,
         userDisplayName: options?.userDisplayName ?? `Test User`,
         userRole: options?.userRole ?? 'admin',
@@ -170,12 +173,13 @@ export async function seedTenant(options?: {
     );
 
     const record = result.records[0];
+    // Return the raw (unhashed) API key — callers use it for auth headers
     return {
       orgId: record.get('orgId'),
       orgSlug: record.get('orgSlug'),
       domainId: record.get('domainId'),
       domainSlug: record.get('domainSlug'),
-      apiKey: record.get('apiKey'),
+      apiKey: rawApiKey,
       userId: record.get('userId'),
       userEmail: record.get('userEmail'),
     };
@@ -195,10 +199,11 @@ export async function seedDomainWithApiKey(
 ): Promise<string> {
   const d = getDriver();
   const session = d.session();
+  const hashedKey = hashApiKey(apiKey);
   try {
     await session.run(
       'CREATE (d:Domain {id: randomUUID(), slug: $slug, name: $name, apiKey: $apiKey, createdAt: datetime()}) RETURN d',
-      { slug, name: name ?? `Test Domain ${slug}`, apiKey }
+      { slug, name: name ?? `Test Domain ${slug}`, apiKey: hashedKey }
     );
     return slug;
   } finally {

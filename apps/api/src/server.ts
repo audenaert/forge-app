@@ -1,13 +1,20 @@
+import express from 'express';
+import cors from 'cors';
+import { json } from 'express';
 import { ApolloServer } from '@apollo/server';
-import { startStandaloneServer } from '@apollo/server/standalone';
+import { expressMiddleware } from '@apollo/server/express4';
 import { createDriver, verifyConnection, createSchema, applyConstraints } from '@forge-workspace/graph';
 import { errorClassificationPlugin } from './plugins/errorClassification.js';
 import { queryTimingPlugin } from './plugins/queryTiming.js';
 import { resolveDomainFromApiKey, extractApiKey } from './auth.js';
 import { GraphQLError } from 'graphql';
+import type { Driver } from 'neo4j-driver';
+
+// Module-level driver so the health check route can access it
+let driver: Driver;
 
 async function main(): Promise<void> {
-  const driver = createDriver();
+  driver = createDriver();
 
   // Fail fast if Neo4j is unreachable
   await verifyConnection(driver);
@@ -28,38 +35,62 @@ async function main(): Promise<void> {
     ],
   });
 
+  await server.start();
+
   const isDevelopment = process.env.NODE_ENV === 'development';
+  const port = Number(process.env.PORT ?? 4000);
 
-  const { url } = await startStandaloneServer(server, {
-    listen: { port: Number(process.env.PORT ?? 4000) },
-    context: async ({ req }) => {
-      const apiKey = extractApiKey({
-        authorization: req.headers.authorization,
-        'x-api-key': req.headers['x-api-key'] as string | undefined,
-      });
+  const app = express();
 
-      if (!apiKey) {
-        // In development mode, fall back to 'default' domain when no key is provided
-        if (isDevelopment) {
-          return { domainSlug: 'default' };
-        }
-        throw new GraphQLError('Missing API key. Provide Authorization: Bearer <key> or X-API-Key: <key> header.', {
-          extensions: { code: 'UNAUTHORIZED' },
-        });
-      }
-
-      const domainSlug = await resolveDomainFromApiKey(driver, apiKey);
-      if (!domainSlug) {
-        throw new GraphQLError('Invalid API key.', {
-          extensions: { code: 'UNAUTHORIZED' },
-        });
-      }
-
-      return { domainSlug };
-    },
+  // Health check — verify actual Neo4j connectivity
+  app.get('/health', async (_req, res) => {
+    const session = driver.session();
+    try {
+      await session.run('RETURN 1');
+      res.json({ status: 'ok' });
+    } catch (err) {
+      res.status(503).json({ status: 'error', message: 'Neo4j unreachable' });
+    } finally {
+      await session.close();
+    }
   });
 
-  console.log(`Forge API ready at ${url}`);
+  app.use(
+    '/graphql',
+    cors(),
+    json(),
+    expressMiddleware(server, {
+      context: async ({ req }) => {
+        const apiKey = extractApiKey({
+          authorization: req.headers.authorization,
+          'x-api-key': req.headers['x-api-key'] as string | undefined,
+        });
+
+        if (!apiKey) {
+          // In development mode, fall back to 'default' domain when no key is provided
+          if (isDevelopment) {
+            return { domainSlug: 'default' };
+          }
+          throw new GraphQLError('Missing API key. Provide Authorization: Bearer <key> or X-API-Key: <key> header.', {
+            extensions: { code: 'UNAUTHORIZED' },
+          });
+        }
+
+        const domainSlug = await resolveDomainFromApiKey(driver, apiKey);
+        if (!domainSlug) {
+          throw new GraphQLError('Invalid API key.', {
+            extensions: { code: 'UNAUTHORIZED' },
+          });
+        }
+
+        return { domainSlug };
+      },
+    })
+  );
+
+  app.listen(port, () => {
+    console.log(`Forge API ready at http://localhost:${port}/graphql`);
+  });
 }
 
 main().catch((err: unknown) => {
