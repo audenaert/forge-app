@@ -3,7 +3,7 @@ name: "M2: Full artifact taxonomy"
 type: milestone
 milestone_type: foundation
 project: graph-backed-artifact-store
-status: planned
+status: in_progress
 target_date: null
 workstream_deliverables:
   - workstream: graph-data-layer

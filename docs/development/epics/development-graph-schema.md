@@ -1,7 +1,7 @@
 ---
 name: "Development graph schema"
 type: epic
-status: draft
+status: complete
 parent: graph-backed-artifact-store
 children: []
 workstream: graph-data-layer

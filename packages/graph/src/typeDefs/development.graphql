@@ -1,0 +1,332 @@
+# --- Development work item enums ---
+
+enum InitiativeStatus { PROPOSED ACTIVE PAUSED COMPLETE ABANDONED }
+enum ProjectStatus { SCOPING PLANNING IN_PROGRESS COMPLETE ABANDONED }
+enum EpicStatus { DRAFT READY IN_PROGRESS COMPLETE }
+enum StoryStatus { DRAFT READY IN_PROGRESS COMPLETE }
+enum TaskStatus { TODO IN_PROGRESS DONE BLOCKED }
+enum EnhancementStatus { TODO IN_PROGRESS DONE }
+enum BugStatus { OPEN INVESTIGATING FIX_IN_PROGRESS RESOLVED }
+enum BugSeverity { CRITICAL HIGH MEDIUM LOW }
+enum ChoreStatus { TODO IN_PROGRESS DONE }
+enum SpikeStatus { PLANNED IN_PROGRESS COMPLETE }
+enum SpikeOutcome { FINDING PROOF_OF_CONCEPT ADR }
+enum SpecStatus { DRAFT REVIEW APPROVED SUPERSEDED }
+enum ADRStatus { PROPOSED ACCEPTED DEPRECATED SUPERSEDED }
+enum DevWorkstreamStatus { ACTIVE BLOCKED COMPLETE }
+enum DevMilestoneStatus { PLANNED IN_PROGRESS COMPLETE }
+enum DevMilestoneType { VALUE INTEGRATION FOUNDATION }
+
+# --- Work item types ---
+
+type Initiative @node {
+  id: ID! @id
+  name: String!
+  status: InitiativeStatus!
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  children: [Project!]! @relationship(type: "PARENT_OF", direction: OUT)
+  fromDiscovery: Idea @relationship(type: "FROM_DISCOVERY", direction: OUT)
+}
+
+type Project @node {
+  id: ID! @id
+  name: String!
+  status: ProjectStatus!
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  parent: Initiative @relationship(type: "PARENT_OF", direction: IN)
+  children: [Epic!]! @relationship(type: "PARENT_OF", direction: OUT)
+  workstreams: [DevWorkstream!]! @relationship(type: "HAS_WORKSTREAM", direction: OUT)
+  milestones: [DevMilestone!]! @relationship(type: "HAS_MILESTONE", direction: OUT)
+  fromDiscovery: Idea @relationship(type: "FROM_DISCOVERY", direction: OUT)
+}
+
+type Epic @node {
+  id: ID! @id
+  name: String!
+  status: EpicStatus!
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  parent: Project @relationship(type: "PARENT_OF", direction: IN)
+  children: [Story!]! @relationship(type: "PARENT_OF", direction: OUT)
+  workstream: DevWorkstream @relationship(type: "ASSIGNED_TO_WORKSTREAM", direction: OUT)
+  milestone: DevMilestone @relationship(type: "ASSIGNED_TO_MILESTONE", direction: OUT)
+}
+
+type Story @node {
+  id: ID! @id
+  name: String!
+  status: StoryStatus!
+  body: String
+  acceptanceCriteria: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  parent: Epic @relationship(type: "PARENT_OF", direction: IN)
+  children: [Task!]! @relationship(type: "PARENT_OF", direction: OUT)
+  workstream: DevWorkstream @relationship(type: "ASSIGNED_TO_WORKSTREAM", direction: OUT)
+  milestone: DevMilestone @relationship(type: "ASSIGNED_TO_MILESTONE", direction: OUT)
+}
+
+type Task @node {
+  id: ID! @id
+  name: String!
+  status: TaskStatus!
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  parent: Story @relationship(type: "PARENT_OF", direction: IN)
+  workstream: DevWorkstream @relationship(type: "ASSIGNED_TO_WORKSTREAM", direction: OUT)
+}
+
+type Enhancement @node {
+  id: ID! @id
+  name: String!
+  status: EnhancementStatus!
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  parent: Epic @relationship(type: "PARENT_OF", direction: IN)
+}
+
+type Bug @node {
+  id: ID! @id
+  name: String!
+  status: BugStatus!
+  severity: BugSeverity!
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  parent: Epic @relationship(type: "PARENT_OF", direction: IN)
+}
+
+type Chore @node {
+  id: ID! @id
+  name: String!
+  status: ChoreStatus!
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  parent: Epic @relationship(type: "PARENT_OF", direction: IN)
+}
+
+# --- Supporting types ---
+
+type Spike @node {
+  id: ID! @id
+  name: String!
+  status: SpikeStatus!
+  timeBox: String
+  question: String
+  decisionCriteria: String
+  outcome: SpikeOutcome
+  result: String
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+}
+
+type Spec @node {
+  id: ID! @id
+  name: String!
+  status: SpecStatus!
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  specFor: Project @relationship(type: "SPEC_FOR", direction: OUT)
+}
+
+type ADR @node {
+  id: ID! @id
+  name: String!
+  status: ADRStatus!
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  adrFor: Project @relationship(type: "ADR_FOR", direction: OUT)
+  supersededBy: ADR @relationship(type: "SUPERSEDED_BY", direction: OUT)
+}
+
+type DevWorkstream @node {
+  id: ID! @id
+  name: String!
+  status: DevWorkstreamStatus!
+  owner: String
+  interfaceContracts: [String!]!
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  project: Project @relationship(type: "HAS_WORKSTREAM", direction: IN)
+}
+
+type DevMilestone @node {
+  id: ID! @id
+  name: String!
+  status: DevMilestoneStatus!
+  milestoneType: DevMilestoneType
+  targetDate: DateTime
+  demoCriteria: String
+  workstreamDeliverables: [String!]!
+  body: String
+  createdAt: DateTime! @timestamp(operations: [CREATE])
+  updatedAt: DateTime @timestamp(operations: [UPDATE])
+  domain: Domain @relationship(type: "BELONGS_TO", direction: OUT)
+  project: Project @relationship(type: "HAS_MILESTONE", direction: IN)
+}
+
+# --- Traversal return types ---
+
+type TaskSummary {
+  id: ID!
+  name: String!
+  status: TaskStatus!
+}
+
+type StorySummary {
+  id: ID!
+  name: String!
+  status: StoryStatus!
+  acceptanceCriteria: String
+  tasks: [TaskSummary!]!
+}
+
+type EpicSummary {
+  id: ID!
+  name: String!
+  status: EpicStatus!
+  stories: [StorySummary!]!
+}
+
+type ProjectHierarchy {
+  id: ID!
+  name: String!
+  status: ProjectStatus!
+  epics: [EpicSummary!]!
+}
+
+type GraphHealth {
+  totalObjectives: Int!
+  totalOpportunities: Int!
+  totalIdeas: Int!
+  totalAssumptions: Int!
+  totalExperiments: Int!
+  totalInitiatives: Int!
+  totalProjects: Int!
+  totalEpics: Int!
+  totalStories: Int!
+  totalTasks: Int!
+  untestedHighImportanceAssumptions: Int!
+  ideasWithNoAssumptions: Int!
+  orphanedOpportunities: Int!
+  ideasWithNoDelivery: Int!
+  projectsWithNoDiscoveryLink: Int!
+}
+
+# --- Custom traversal queries ---
+
+extend type Query {
+  projectHierarchy(projectId: ID!, domainSlug: String!): ProjectHierarchy
+    @cypher(
+      statement: """
+      MATCH (proj:Project {id: $projectId})-[:BELONGS_TO]->(:Domain {slug: $domainSlug})
+      CALL {
+        WITH proj
+        OPTIONAL MATCH (proj)-[:PARENT_OF]->(epic:Epic)
+        CALL {
+          WITH epic
+          OPTIONAL MATCH (epic)-[:PARENT_OF]->(story:Story)
+          CALL {
+            WITH story
+            OPTIONAL MATCH (story)-[:PARENT_OF]->(task:Task)
+            RETURN collect(task { .id, .name, .status }) AS tasks
+          }
+          RETURN collect(story { .id, .name, .status, .acceptanceCriteria, tasks: tasks }) AS stories
+        }
+        RETURN collect(epic { .id, .name, .status, stories: stories }) AS epics
+      }
+      RETURN proj { .id, .name, .status, epics: epics } AS result
+      """
+      columnName: "result"
+    )
+
+  graphHealth(domainSlug: String!): GraphHealth
+    @cypher(
+      statement: """
+      MATCH (d:Domain {slug: $domainSlug})
+      CALL { WITH d MATCH (n:Objective)-[:BELONGS_TO]->(d) RETURN count(n) AS totalObjectives }
+      CALL { WITH d MATCH (n:Opportunity)-[:BELONGS_TO]->(d) RETURN count(n) AS totalOpportunities }
+      CALL { WITH d MATCH (n:Idea)-[:BELONGS_TO]->(d) RETURN count(n) AS totalIdeas }
+      CALL { WITH d MATCH (n:Assumption)-[:BELONGS_TO]->(d) RETURN count(n) AS totalAssumptions }
+      CALL { WITH d MATCH (n:Experiment)-[:BELONGS_TO]->(d) RETURN count(n) AS totalExperiments }
+      CALL { WITH d MATCH (n:Initiative)-[:BELONGS_TO]->(d) RETURN count(n) AS totalInitiatives }
+      CALL { WITH d MATCH (n:Project)-[:BELONGS_TO]->(d) RETURN count(n) AS totalProjects }
+      CALL { WITH d MATCH (n:Epic)-[:BELONGS_TO]->(d) RETURN count(n) AS totalEpics }
+      CALL { WITH d MATCH (n:Story)-[:BELONGS_TO]->(d) RETURN count(n) AS totalStories }
+      CALL { WITH d MATCH (n:Task)-[:BELONGS_TO]->(d) RETURN count(n) AS totalTasks }
+      CALL {
+        WITH d
+        MATCH (a:Assumption)-[:BELONGS_TO]->(d)
+        WHERE a.status = 'UNTESTED' AND a.importance = 'HIGH'
+          AND NOT EXISTS { (a)<-[:TESTS]-(:Experiment) }
+        RETURN count(a) AS untestedHighImportanceAssumptions
+      }
+      CALL {
+        WITH d
+        MATCH (i:Idea)-[:BELONGS_TO]->(d)
+        WHERE NOT EXISTS { (i)<-[:ASSUMED_BY]-(:Assumption) }
+        RETURN count(i) AS ideasWithNoAssumptions
+      }
+      CALL {
+        WITH d
+        MATCH (o:Opportunity)-[:BELONGS_TO]->(d)
+        WHERE NOT EXISTS { (o)-[:SUPPORTS]->(:Objective) }
+        RETURN count(o) AS orphanedOpportunities
+      }
+      CALL {
+        WITH d
+        MATCH (i:Idea)-[:BELONGS_TO]->(d)
+        WHERE NOT EXISTS { (i)<-[:FROM_DISCOVERY]-() }
+        RETURN count(i) AS ideasWithNoDelivery
+      }
+      CALL {
+        WITH d
+        MATCH (p:Project)-[:BELONGS_TO]->(d)
+        WHERE NOT EXISTS { (p)-[:FROM_DISCOVERY]->(:Idea) }
+        RETURN count(p) AS projectsWithNoDiscoveryLink
+      }
+      RETURN {
+        totalObjectives: totalObjectives,
+        totalOpportunities: totalOpportunities,
+        totalIdeas: totalIdeas,
+        totalAssumptions: totalAssumptions,
+        totalExperiments: totalExperiments,
+        totalInitiatives: totalInitiatives,
+        totalProjects: totalProjects,
+        totalEpics: totalEpics,
+        totalStories: totalStories,
+        totalTasks: totalTasks,
+        untestedHighImportanceAssumptions: untestedHighImportanceAssumptions,
+        ideasWithNoAssumptions: ideasWithNoAssumptions,
+        orphanedOpportunities: orphanedOpportunities,
+        ideasWithNoDelivery: ideasWithNoDelivery,
+        projectsWithNoDiscoveryLink: projectsWithNoDiscoveryLink
+      } AS result
+      """
+      columnName: "result"
+    )
+}

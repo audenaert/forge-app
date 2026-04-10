@@ -1,7 +1,7 @@
 ---
 name: "Development artifact API"
 type: epic
-status: draft
+status: complete
 parent: graph-backed-artifact-store
 children: []
 workstream: graphql-api

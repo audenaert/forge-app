@@ -11,7 +11,8 @@ export function loadTypeDefs(): string {
   const dir = join(__dirname, 'typeDefs');
   const common = readFileSync(join(dir, 'common.graphql'), 'utf-8');
   const discovery = readFileSync(join(dir, 'discovery.graphql'), 'utf-8');
-  return [common, discovery].join('\n');
+  const development = readFileSync(join(dir, 'development.graphql'), 'utf-8');
+  return [common, discovery, development].join('\n');
 }
 
 export async function createSchema(driver: Driver): Promise<GraphQLSchema> {

@@ -17,7 +17,7 @@ describe('Constraint initialization', () => {
     await expect(applyConstraints(getDriver())).resolves.not.toThrow();
   });
 
-  it('should have all 6 uniqueness constraints', async () => {
+  it('should have all uniqueness constraints', async () => {
     const session = getDriver().session();
     try {
       const result = await session.run('SHOW CONSTRAINTS');
@@ -26,12 +26,28 @@ describe('Constraint initialization', () => {
         .filter((c) => c.type === 'UNIQUENESS')
         .map((c) => c.name);
 
+      // Discovery (M1)
       expect(uniqueConstraintNames).toContain('domain_slug');
       expect(uniqueConstraintNames).toContain('objective_id');
       expect(uniqueConstraintNames).toContain('opportunity_id');
       expect(uniqueConstraintNames).toContain('idea_id');
       expect(uniqueConstraintNames).toContain('assumption_id');
       expect(uniqueConstraintNames).toContain('experiment_id');
+
+      // Development (M2)
+      expect(uniqueConstraintNames).toContain('initiative_id');
+      expect(uniqueConstraintNames).toContain('project_id');
+      expect(uniqueConstraintNames).toContain('epic_id');
+      expect(uniqueConstraintNames).toContain('story_id');
+      expect(uniqueConstraintNames).toContain('task_id');
+      expect(uniqueConstraintNames).toContain('enhancement_id');
+      expect(uniqueConstraintNames).toContain('bug_id');
+      expect(uniqueConstraintNames).toContain('chore_id');
+      expect(uniqueConstraintNames).toContain('spike_id');
+      expect(uniqueConstraintNames).toContain('spec_id');
+      expect(uniqueConstraintNames).toContain('adr_id');
+      expect(uniqueConstraintNames).toContain('dev_workstream_id');
+      expect(uniqueConstraintNames).toContain('dev_milestone_id');
     } finally {
       await session.close();
     }
