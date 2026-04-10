@@ -3,7 +3,9 @@ name: "Schema constraint initialization"
 type: story
 status: draft
 parent: infrastructure-and-connection
-children: []
+children:
+  - create-constraints-module
+  - test-constraints-idempotent
 workstream: graph-data-layer
 milestone: m1-discovery-graph-end-to-end
 acceptance_criteria:

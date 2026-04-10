@@ -3,7 +3,11 @@ name: "Integration test suite"
 type: story
 status: draft
 parent: discovery-artifact-api
-children: []
+children:
+  - setup-vitest-config
+  - create-test-container-setup
+  - create-graphql-test-client
+  - write-edge-case-tests
 workstream: graphql-api
 milestone: m1-discovery-graph-end-to-end
 acceptance_criteria:

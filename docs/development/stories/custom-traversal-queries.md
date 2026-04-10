@@ -3,7 +3,10 @@ name: "Custom traversal queries"
 type: story
 status: draft
 parent: discovery-graph-schema
-children: []
+children:
+  - add-traversal-return-types
+  - add-cypher-queries
+  - test-traversal-queries
 workstream: graph-data-layer
 milestone: m1-discovery-graph-end-to-end
 acceptance_criteria:

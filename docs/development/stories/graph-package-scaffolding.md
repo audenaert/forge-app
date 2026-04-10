@@ -3,7 +3,9 @@ name: "packages/graph package scaffolding"
 type: story
 status: draft
 parent: infrastructure-and-connection
-children: []
+children:
+  - create-tsconfig-base
+  - scaffold-packages-graph
 workstream: graph-data-layer
 milestone: m1-discovery-graph-end-to-end
 acceptance_criteria:

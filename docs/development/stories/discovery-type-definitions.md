@@ -3,7 +3,10 @@ name: "Discovery type definitions in SDL"
 type: story
 status: draft
 parent: discovery-graph-schema
-children: []
+children:
+  - create-common-graphql
+  - create-discovery-graphql
+  - create-schema-module
 workstream: graph-data-layer
 milestone: m1-discovery-graph-end-to-end
 acceptance_criteria:

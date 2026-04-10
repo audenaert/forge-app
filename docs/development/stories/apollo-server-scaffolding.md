@@ -3,7 +3,9 @@ name: "Apollo Server scaffolding"
 type: story
 status: draft
 parent: api-foundation
-children: []
+children:
+  - scaffold-apps-api
+  - create-server-entry
 workstream: graphql-api
 milestone: m1-discovery-graph-end-to-end
 acceptance_criteria:

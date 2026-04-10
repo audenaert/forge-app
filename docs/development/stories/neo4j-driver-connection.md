@@ -3,7 +3,9 @@ name: "Neo4j driver with connection management"
 type: story
 status: draft
 parent: infrastructure-and-connection
-children: []
+children:
+  - create-driver-module
+  - add-verify-connectivity
 workstream: graph-data-layer
 milestone: m1-discovery-graph-end-to-end
 acceptance_criteria:

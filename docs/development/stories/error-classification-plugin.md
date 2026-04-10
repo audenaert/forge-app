@@ -3,7 +3,9 @@ name: "Error classification plugin"
 type: story
 status: draft
 parent: api-foundation
-children: []
+children:
+  - create-error-plugin
+  - test-error-classification
 workstream: graphql-api
 milestone: m1-discovery-graph-end-to-end
 acceptance_criteria:

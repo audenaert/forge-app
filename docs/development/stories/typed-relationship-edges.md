@@ -3,7 +3,9 @@ name: "Typed relationship edges"
 type: story
 status: draft
 parent: discovery-graph-schema
-children: []
+children:
+  - test-relationship-traversal
+  - test-belongs-to-domain
 workstream: graph-data-layer
 milestone: m1-discovery-graph-end-to-end
 acceptance_criteria:

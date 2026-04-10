@@ -3,7 +3,8 @@ name: "Relationship mutations"
 type: story
 status: draft
 parent: discovery-artifact-api
-children: []
+children:
+  - test-relationship-mutations
 workstream: graphql-api
 milestone: m1-discovery-graph-end-to-end
 acceptance_criteria:

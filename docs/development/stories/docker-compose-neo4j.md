@@ -3,7 +3,9 @@ name: "Docker Compose with Neo4j"
 type: story
 status: draft
 parent: infrastructure-and-connection
-children: []
+children:
+  - create-docker-compose
+  - create-env-example
 workstream: graph-data-layer
 milestone: m1-discovery-graph-end-to-end
 acceptance_criteria:

@@ -3,7 +3,9 @@ name: "CRUD mutations for discovery types"
 type: story
 status: draft
 parent: discovery-artifact-api
-children: []
+children:
+  - test-crud-all-types
+  - test-timestamp-behavior
 workstream: graphql-api
 milestone: m1-discovery-graph-end-to-end
 acceptance_criteria:

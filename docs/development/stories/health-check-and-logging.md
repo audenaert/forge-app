@@ -3,7 +3,9 @@ name: "Health check and logging"
 type: story
 status: draft
 parent: api-foundation
-children: []
+children:
+  - create-health-endpoint
+  - create-logging-plugin
 workstream: graphql-api
 milestone: m1-discovery-graph-end-to-end
 acceptance_criteria:
