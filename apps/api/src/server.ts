@@ -37,7 +37,7 @@ async function main(): Promise<void> {
 
   await server.start();
 
-  const isDevelopment = process.env.NODE_ENV === 'development';
+  const disableAuth = process.env.DISABLE_AUTH === 'true';
   const port = Number(process.env.PORT ?? 4000);
 
   const app = express();
@@ -67,8 +67,8 @@ async function main(): Promise<void> {
         });
 
         if (!apiKey) {
-          // In development mode, fall back to 'default' domain when no key is provided
-          if (isDevelopment) {
+          // Only skip auth when explicitly disabled (local dev)
+          if (disableAuth) {
             return { domainSlug: 'default' };
           }
           throw new GraphQLError('Missing API key. Provide Authorization: Bearer <key> or X-API-Key: <key> header.', {

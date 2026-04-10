@@ -9,7 +9,7 @@ import {
   getDriver,
 } from './setup.js';
 import { executeGraphQL } from './graphql-client.js';
-import { hashApiKey } from '../apps/api/src/auth.js';
+import { hashApiKey, extractApiKey } from '../apps/api/src/auth.js';
 
 /** Helper: connect an existing node to a pre-seeded domain via Cypher */
 async function connectToDomain(label: string, nodeId: string, slug: string): Promise<void> {
@@ -483,6 +483,42 @@ describe('Multi-tenant auth and domain isolation', () => {
       expect(healthB!.graphHealth.totalObjectives).toBe(0);
       expect(healthB!.graphHealth.totalOpportunities).toBe(2);
       expect(healthB!.graphHealth.totalInitiatives).toBe(0);
+    });
+  });
+
+  // --- extractApiKey unit tests ---
+
+  describe('extractApiKey', () => {
+    it('should extract from X-API-Key header', () => {
+      expect(extractApiKey({ 'x-api-key': 'fk_abc123' })).toBe('fk_abc123');
+    });
+
+    it('should extract from Authorization: Bearer header', () => {
+      expect(extractApiKey({ authorization: 'Bearer fk_abc123' })).toBe('fk_abc123');
+    });
+
+    it('should return null for empty headers', () => {
+      expect(extractApiKey({})).toBeNull();
+    });
+
+    it('should return null for wrong auth scheme', () => {
+      expect(extractApiKey({ authorization: 'Basic abc123' })).toBeNull();
+    });
+
+    it('should trim whitespace from Bearer token', () => {
+      expect(extractApiKey({ authorization: 'Bearer  fk_abc123 ' })).toBe('fk_abc123');
+    });
+
+    it('should return empty string for empty Bearer token', () => {
+      // 'Bearer ' with nothing after — returns '' (server.ts catches this with !apiKey check)
+      expect(extractApiKey({ authorization: 'Bearer ' })).toBe('');
+    });
+
+    it('should prefer X-API-Key over Authorization header', () => {
+      expect(extractApiKey({
+        'x-api-key': 'from_x_header',
+        authorization: 'Bearer from_auth_header',
+      })).toBe('from_x_header');
     });
   });
 
