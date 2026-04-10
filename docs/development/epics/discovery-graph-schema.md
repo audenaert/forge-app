@@ -3,7 +3,10 @@ name: "Discovery graph schema"
 type: epic
 status: draft
 parent: graph-backed-artifact-store
-children: []
+children:
+  - discovery-type-definitions
+  - typed-relationship-edges
+  - custom-traversal-queries
 workstream: graph-data-layer
 milestone: m1-discovery-graph-end-to-end
 ---

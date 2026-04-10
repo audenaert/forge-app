@@ -3,7 +3,10 @@ name: "Discovery artifact API"
 type: epic
 status: draft
 parent: graph-backed-artifact-store
-children: []
+children:
+  - crud-mutations-discovery
+  - relationship-mutations
+  - integration-test-suite
 workstream: graphql-api
 milestone: m1-discovery-graph-end-to-end
 ---

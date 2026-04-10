@@ -3,7 +3,11 @@ name: "Infrastructure & connection"
 type: epic
 status: draft
 parent: graph-backed-artifact-store
-children: []
+children:
+  - docker-compose-neo4j
+  - graph-package-scaffolding
+  - neo4j-driver-connection
+  - schema-constraint-initialization
 workstream: graph-data-layer
 milestone: m1-discovery-graph-end-to-end
 ---
