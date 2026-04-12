@@ -15,10 +15,12 @@
   "engines": {
     "node": ">=22"
   },
+  "packageManager": "npm@10.9.7",
   "devDependencies": {
     "@testcontainers/neo4j": "^11.14.0",
     "testcontainers": "^11.14.0",
     "tsx": "^4.21.0",
+    "turbo": "^2.3.0",
     "typescript": "^6.0.2",
     "vitest": "^4.1.4"
   }
