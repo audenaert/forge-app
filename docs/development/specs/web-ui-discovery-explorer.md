@@ -10,9 +10,14 @@ adrs: []
 
 The graph-backed artifact store now has a working API layer — Neo4j stores discovery and development artifacts, Apollo Server exposes them via GraphQL, and traversal queries like `opportunitySubgraph` and `discoveryHealth` return structured subgraphs. The data model works. No one can see it.
 
-This spec covers the first web client: a read-only discovery explorer that makes the Opportunity Solution Tree visible and navigable. The goal is to prove that a graph-backed model produces a qualitatively different experience from flat artifact lists — you can see the full chain from objective to experiment result, identify untested assumptions at a glance, and understand the health of your discovery process.
+This spec covers the first web client: a read-only discovery explorer that makes the discovery graph visible and navigable. The goal is to prove that a graph-backed model produces a qualitatively different experience from flat artifact lists — you can read any artifact in context, follow typed relationships sideways across the graph, see the hierarchical chain from objective to experiment result, identify untested assumptions at a glance, and notice the disconnected pockets that signal missing structure.
 
-Read-only is a deliberate choice. The first milestone validates the visualization and navigation thesis. CRUD comes next, once the information architecture is validated by actual use.
+The information architecture is built on **two complementary projections of one graph**:
+
+1. **Hypertext navigation** is the primary read model. Every artifact has its own canonical URL, and every typed relationship in the artifact's body or metadata is a hyperlink that takes you to the related artifact. This is how the non-hierarchical graph is actually traversed: laterally, by clicking through implications and dependencies.
+2. **The tree projection** is an orientation device. The Objective → Opportunity → Idea → Assumption → Experiment view maps onto familiar ticketing-system intuitions and makes hierarchy legible. It is one *projection* of the graph, not the graph itself, and it is one of several entry points into the artifact pages where most reading happens.
+
+Read-only is a deliberate choice for this milestone. CRUD comes next, once the information architecture is validated by actual use. Editing will eventually be a mixed-initiative collaborative process — humans and AI agents proposing, reviewing, and accepting changes — with different interactions and different backend tools per artifact type. None of that is in scope here, but the foundation should not preclude it.
 
 **Related artifacts:**
 - Manifest: `docs/local/etak-manifest.md`
@@ -68,11 +73,17 @@ apps/web/
         Sidebar.tsx            # Navigation links
         EmptyState.tsx         # Zero-data state with guidance
       discovery/
-        DiscoveryDashboard.tsx # Health stats + entry point
-        ObjectiveList.tsx      # Top-level objectives for a domain
-        OpportunityTree.tsx    # Expandable tree: Opp → Ideas → Assumptions → Experiments
-        NodeDetail.tsx         # Right panel: full detail for selected node
+        DiscoveryDashboard.tsx # Health bar + objective list + orphan signals
         HealthBar.tsx          # Discovery health summary widget
+        ObjectiveList.tsx      # Objectives for the domain (with orphan sections)
+        TreeProjection.tsx     # Expandable tree rooted at an objective
+        UntestedAssumptionsList.tsx # Filtered list view
+      artifact/
+        ArtifactPage.tsx       # Generic artifact route shell — header, body, relationships
+        ArtifactHeader.tsx     # Type icon, name, status badge, type-specific metadata
+        ArtifactBody.tsx       # Markdown body via react-markdown + remark-gfm
+        RelationshipList.tsx   # Typed-relationship hyperlinks (the lateral nav surface)
+        ArtifactLink.tsx       # Inline link primitive: type icon + name → /<type>/:id
     styles/
       app.css                 # Tailwind v4 @theme tokens + global styles
 ```
@@ -157,37 +168,55 @@ The `domainSlug` resolved server-side from the API key is included in the Apollo
 
 **Routes:**
 
+The route table reflects the two-projection IA: artifact pages are first-class destinations with canonical URLs, the tree is one projection that gets you into them, and the dashboard plus filtered list views are additional entry points.
+
 | Route | View | Data |
 |---|---|---|
-| `/` | Discovery dashboard: health bar + objective list | `discoveryHealth`, `objectives` |
-| `/opportunity/:id` | Opportunity subgraph tree + selected node detail | `opportunitySubgraph`, lazy node detail |
+| `/` | Dashboard: health bar, objective list, orphan signals | `discoveryHealth`, `objectives`, orphan queries |
+| `/objective/:id` | Objective artifact page | `ObjectiveDetail` |
+| `/opportunity/:id` | Opportunity artifact page | `OpportunityDetail` |
+| `/idea/:id` | Idea artifact page | `IdeaDetail` |
+| `/assumption/:id` | Assumption artifact page | `AssumptionDetail` |
+| `/experiment/:id` | Experiment artifact page | `ExperimentDetail` |
+| `/tree/objective/:id` | Tree projection rooted at an objective | `objectiveSubgraph` (see Schema work) |
+| `/tree/opportunity/:id` | Tree projection rooted at an opportunity | `opportunitySubgraph` |
 | `/assumptions` | Untested assumptions list (filtered) | `untestedAssumptions` |
+
+**Artifact pages are the primary read surface.** The tree projection routes are entry points into them. Clicking a node in the tree navigates to the artifact page; the tree itself remains visible as a persistent left rail when you're on an artifact page that's part of the same subgraph, so the tree's orientation value persists across lateral navigation.
+
+**No breadcrumbs.** The graph is genuinely non-hierarchical — a single idea can be referenced by multiple opportunities, and many artifacts are not connected to a parent at all. A breadcrumb trail would imply a single canonical parent path that does not exist. Upward context is shown instead in the artifact page's `RelationshipList` under sections like "Supports", "Addresses", or "Tested by", and in the tree projection rail when one is open.
 
 ### Layout: AppShell
 
-Two-region layout, not three. The sidebar is minimal — navigation links only (no domain selector; the API key determines the domain). The main content area handles all the detail work.
+The shell has three regions: a fixed-width navigation sidebar on the far left, an optional tree-projection rail next to it, and the main content area on the right. The tree rail is visible only on routes that are inside a tree projection (`/tree/...`) or on an artifact page reached from within one — otherwise the main content area expands to fill its space.
 
 ```
-┌──────────┬────────────────────────────────────────────────────┐
-│          │                                                    │
-│ Sidebar  │  Main content area                                 │
-│          │                                                    │
-│ Discover │  ┌──────────────────────────────────────────────┐  │
-│  ├ Tree  │  │ Health bar (discovery health stats)           │  │
-│  └ Gaps  │  └──────────────────────────────────────────────┘  │
-│          │  ┌──────────────────────┬───────────────────────┐  │
-│          │  │                      │                       │  │
-│          │  │  Opportunity tree     │  Node detail panel    │  │
-│          │  │  (expandable)         │  (selected node)      │  │
-│          │  │                      │                       │  │
-│          │  └──────────────────────┴───────────────────────┘  │
-│          │                                                    │
-└──────────┴────────────────────────────────────────────────────┘
+┌──────────┬───────────────┬─────────────────────────────────────┐
+│          │               │                                     │
+│ Sidebar  │  Tree rail    │  Main content                       │
+│          │  (optional)   │                                     │
+│ Dashboard│               │  ┌───────────────────────────────┐  │
+│ Tree     │  ◆ Objective  │  │ Artifact page                  │  │
+│ Gaps     │   ◇ Opp       │  │   (or dashboard, list view,    │  │
+│          │    ⚪ Idea    │  │    or empty state)             │  │
+│          │     ? Assum   │  │                                │  │
+│          │      ⚗ Exp    │  │  Header   (type/name/status)   │  │
+│          │   ⚪ Idea     │  │  Body     (markdown)           │  │
+│          │  ◇ Opp        │  │  Relationships (links)         │  │
+│          │               │  └───────────────────────────────┘  │
+│          │  Unrooted ▾   │                                     │
+└──────────┴───────────────┴─────────────────────────────────────┘
 ```
 
-The sidebar shares the canvas background per the design system — separated by `--border-default`, not a different color. Active nav states use `--ocean` text with subtle background tint.
+**Sidebar (fixed left).** Navigation links only — no domain selector; the API key determines the domain. Links: Dashboard, Tree, Gaps. Sidebar shares the canvas background per the design system, separated by `--border-default`.
 
-### Discovery dashboard (`/:domainSlug`)
+**Tree rail (optional).** When the user is inside a tree projection or has navigated from one to a related artifact page, the rail stays visible so the projection doesn't collapse out of view as soon as you click into a node. Closing the rail (or navigating to an unrelated route) collapses it. The rail includes an "Unrooted" disclosure section listing artifacts of the current type that have no parent in the projection (see "Orphans as a feature" below).
+
+**Main content.** Holds the dashboard, the artifact page, or a filtered list view, depending on the route. Artifact pages are the dominant surface — most reading happens here.
+
+### Discovery dashboard (`/`)
+
+The dashboard is the default landing route. It anchors the user in business value (objectives) and surfaces signals about the shape and health of the discovery space — including the disconnected pockets that point to missing structure.
 
 **Health bar** — A compact row of stats from the `discoveryHealth` query. Not a dashboard of charts — a summary ribbon that communicates the shape of the discovery space at a glance:
 
@@ -196,61 +225,106 @@ Objectives: 3  |  Opportunities: 7  |  Ideas: 12  |  Assumptions: 24  |  Experim
 ⚠ 5 untested high-importance assumptions  ⚠ 3 ideas with no assumptions  ⚠ 2 orphaned opportunities
 ```
 
-Warning indicators use `--sand` background tinting (warm attention, not red alarm) for items needing attention. All three health signals are surfaced:
+Warning indicators use `--sand` background tinting (warm attention, not red alarm) for items needing attention. The health signals surfaced are:
 - **Untested high-importance assumptions** — the most critical signal; clicking navigates to `/assumptions?importance=HIGH`
 - **Ideas with no assumptions** — ideas that haven't been decomposed into testable claims
 - **Orphaned opportunities** — opportunities not linked to any objective
+- **Unrooted ideas** — ideas not addressing any opportunity (added in this milestone — see "Orphans as a feature")
 
-Each warning is a navigation affordance — clicking it navigates to the relevant filtered view.
+Each warning is a navigation affordance — clicking it navigates to the relevant filtered view or to the dashboard's orphans section.
 
-**Empty state** — When a domain has zero discovery data (new domain, freshly seeded), the dashboard shows an `EmptyState` component instead of a zeroed-out health bar. The empty state should communicate what the discovery space is for and what the first step would be (creating an objective). In the read-only version, it explains that data is created via the API or Claude Code and points to the seed script.
+**Empty state** — When a domain has zero discovery data, the dashboard shows an `EmptyState` instead of a zeroed-out health bar. It explains what the discovery space is for and that data is currently created via the API or Claude Code, with a pointer to the seed script.
 
-**Objective list** — Below the health bar, objectives listed with their status and the opportunities supporting each. Each objective is a gravitational anchor (heavier typographic weight per the design system). Opportunities nested beneath are lighter weight. Clicking an opportunity navigates to its subgraph view.
+**Objective list** — Below the health bar, objectives listed with their status and the opportunities supporting each. Each objective is a gravitational anchor (heavier typographic weight per the design system). Each objective name links to `/objective/:id`; each supporting opportunity links to `/opportunity/:id`, and a secondary "View tree" affordance opens `/tree/objective/:id`. Everything is rooted in business value: objectives are the top of the dashboard for a reason.
 
-### Opportunity subgraph view (`/:domainSlug/opportunity/:id`)
+**Orphan sections** — Below the objective list, a disclosure section per artifact type lists artifacts that have no parent in the natural hierarchy: opportunities not supporting any objective, ideas not addressing any opportunity, assumptions not assumed by any idea. These are first-class entries, not warnings buried in a sidebar (see "Orphans as a feature" below for the rationale).
 
-This is the core view. Two panels:
+### Orphans as a feature
 
-**Left: Opportunity tree** — An expandable, indented tree rendering the `opportunitySubgraph` query result:
+The graph is not a top-down structure. Ideas don't emerge from anyone's head fully formed; teams sketch opportunities, capture stray ideas, surface assumptions in conversation, and only later trace the connections back to business objectives. Disconnected artifacts and disconnected sub-trees are an expected and informative feature of the discovery space, not a data-quality bug.
+
+The UI surfaces them rather than hiding them:
+
+- **Dashboard orphan sections** list opportunities, ideas, and assumptions that have no parent in the natural hierarchy.
+- **Tree projection rail** has an "Unrooted" disclosure under each tree, listing artifacts of the relevant type at that level that aren't connected to the current root.
+- **Health bar warnings** treat large numbers of orphans as a signal worth surfacing — but the orphans themselves are navigable and readable, not hidden.
+
+What an orphan signals depends on context: it might be a stray idea waiting to be connected, an opportunity that needs an objective, an assumption that should be linked to multiple ideas, or genuinely standalone work. Surfacing them is what enables that interpretation.
+
+### Artifact pages (`/<type>/:id`)
+
+Artifact pages are the primary read surface and the destination of nearly every navigation action in the app. Every artifact type — Objective, Opportunity, Idea, Assumption, Experiment — has its own canonical route and renders with the same `ArtifactPage` shell:
+
+- **Header.** Type icon + name + status badge. Type-specific metadata (e.g., `hmw` for Opportunity, `importance` / `evidence` for Assumption, `method` / `successCriteria` / `result` / `learnings` for Experiment, `createdAt` / `updatedAt` on every type). The header uses the gravitational hierarchy principle: name and status dominate, metadata is secondary.
+- **Body.** Markdown-rendered body text via `react-markdown` with `remark-gfm`. Read-only in this milestone.
+- **Relationships.** A `RelationshipList` of every typed connection on the artifact, grouped by relationship name (e.g., for an Idea: "Addresses", "Has assumptions"; for an Assumption: "Assumed by", "Tested by"). Each relationship entry is an `ArtifactLink` — type icon + name + status badge — that navigates to the related artifact's page. **This is the primary lateral navigation surface.** Clicking an "Addresses" link on an Idea page takes you to the Opportunity. Clicking a "Tested by" link on an Assumption takes you to the Experiment. The user walks the graph by following these links.
+
+`ArtifactPage` is generic — the type-specific differences live in the metadata block of the header and the set of relationship sections rendered. Each type has a thin per-type wrapper (`ObjectiveArtifactPage`, `OpportunityArtifactPage`, etc.) that fires the appropriate detail query and passes the result into `ArtifactPage`. This keeps the page shell uniform while leaving room to specialize per type as the mixed-initiative editing phase introduces type-specific interactions.
+
+**Enum display.** GraphQL enums (`FAKE_DOOR`, `USER_INTERVIEW`, `READY_FOR_BUILD`, etc.) are rendered as human-readable labels via a lookup map in `lib/enums.ts` (`FAKE_DOOR` → "Fake Door", `READY_FOR_BUILD` → "Ready for Build", `AB_TEST` → "A/B Test", and so on for every enum used in the discovery schema).
+
+**No parent breadcrumbs.** The artifact page does not render a single hierarchical breadcrumb path, because there isn't necessarily one — an idea may be addressed by multiple opportunities, an assumption may be referenced by multiple ideas, and many artifacts are orphaned. Upward context lives in the `RelationshipList`'s upward sections ("Supports", "Addresses", "Assumed by") and, when the user is inside an active tree projection, in the persistent tree rail.
+
+### Tree projection (`/tree/objective/:id`, `/tree/opportunity/:id`)
+
+The tree projection is one *projection* of the graph: a hierarchical slice rooted at a selected node. It is not the app, but it is a familiar and valuable orientation device — it maps directly to the ticketing-system intuitions teams already have, and it makes hierarchy legible in a way that a force-directed graph render does not.
+
+**Roots.** Objectives are the natural top of the discovery hierarchy — everything is rooted in business value, eventually — so `/tree/objective/:id` is the canonical tree route. `/tree/opportunity/:id` is supported because not every opportunity has yet been connected to an objective, and because direct opportunity-rooted exploration is useful when you're working bottom-up.
+
+**Layout.** The tree renders in the optional left rail of the AppShell. The main content area shows whichever artifact page corresponds to the current selection — defaulting to the root artifact when the user lands on the route, switching to a related artifact when the user clicks a tree node.
 
 ```
-◆ Opportunity: "Teams have no computational model..."
-  ├─ Idea: "Graph-backed artifact store"             [Building]
-  │   ├─ Assumption: "Neo4j handles the query patterns" [Validated]
-  │   │   └─ Experiment: "Spike: @cypher directives"     ✓ Validated
-  │   ├─ Assumption: "Teams will adopt graph thinking"   [Untested] ⚠
-  │   └─ Assumption: "GraphQL is the right API surface"  [Validated]
-  │       └─ Experiment: "M1 integration tests"          ✓ Validated
-  └─ Idea: "Server-side domain enforcement"          [Draft]
-      └─ Assumption: "Current scoping is insufficient"   [Untested] ⚠
+◆ Objective: "Accelerate product discovery"            [Active]
+  ◇ Opportunity: "Teams have no computational model..." [Active]
+    ⚪ Idea: "Graph-backed artifact store"               [Building]
+      ? Assumption: "Neo4j handles the query patterns"  [Validated]
+        ⚗ Experiment: "Spike: @cypher directives"       ✓ Validated
+      ? Assumption: "Teams will adopt graph thinking"   [Untested] ⚠
+      ? Assumption: "GraphQL is the right API surface"  [Validated]
+        ⚗ Experiment: "M1 integration tests"            ✓ Validated
+    ⚪ Idea: "Server-side domain enforcement"            [Draft]
+      ? Assumption: "Current scoping is insufficient"   [Untested] ⚠
+  ◇ Opportunity: "(another opportunity supporting this objective)"
+    ...
+
+Unrooted at this level ▾
+  ⚪ Idea: "Standalone wiki concept"  (no opportunity)
+  ? Assumption: "..."                  (no idea)
 ```
 
 Visual encoding:
-- **Node type** distinguished by leading icon (not color alone — WCAG compliance). Objective: filled diamond. Idea: lightbulb. Assumption: question mark. Experiment: beaker.
+- **Node type** distinguished by a leading icon (not color alone — WCAG compliance). Objective: filled diamond ◆. Opportunity: open diamond ◇. Idea: lightbulb / circle ⚪. Assumption: question mark `?`. Experiment: beaker / flask ⚗.
 - **Status** shown as a trailing badge. Color-coded but always with text label.
 - **Untested high-importance assumptions** get a warning indicator — the single most important signal for discovery health.
 - **Depth** communicated by indentation + connector lines (standard tree UI pattern).
 
-The tree is keyboard-navigable: arrow keys to move, Enter/Space to expand/collapse, Tab to move to the detail panel.
+**Click behavior.** Clicking a tree node navigates to the corresponding artifact page (`/idea/:id`, etc.). The tree rail stays visible. The currently selected node is highlighted in the rail to maintain orientation.
 
-**Right: Node detail panel** — Shows the full record for whichever node is selected in the tree:
+**Keyboard navigation.** Arrow keys to move within the tree, Enter to navigate to the focused node's artifact page, Space to toggle expand/collapse, Tab to move focus from the tree rail to the main content area.
 
-- **Header:** Type icon + name + status badge
-- **Metadata:** Created/updated timestamps, type-specific fields (e.g., `hmw` for Opportunity, `importance`/`evidence` for Assumption, `method`/`result`/`learnings` for Experiment)
-- **Body:** Markdown-rendered body text (read-only), rendered via `react-markdown` with `remark-gfm` for GFM support
-- **Relationships:** List of connected nodes, clickable to navigate. "Supports → Objective X", "Tested by → Experiment Y"
+**Unrooted section.** Each tree projection includes an "Unrooted at this level" disclosure listing artifacts of the appropriate type that are not part of the current tree — orphan opportunities when looking at an objective tree, orphan ideas when looking at an opportunity tree, etc. These are first-class navigable entries (see "Orphans as a feature" above).
 
-**Data loading strategy:** The subgraph query returns structural fields only (id, name, status, type-specific enums) — no `body` text. When a node is selected in the tree, the detail panel fires a separate query for that node's full record (including `body`, `createdAt`, `updatedAt`, and relationship details). This keeps the tree query lean and avoids fetching potentially large markdown bodies for nodes the user never inspects. Apollo Client's normalized cache ensures subsequent selections of the same node are instant.
+**Data loading strategy.** The subgraph query returns structural fields only (id, name, status, type-specific enums for badges) — no `body` text. The selected node's artifact page fires a separate detail query for the full record (including `body`, `createdAt`, `updatedAt`, and relationship details). This keeps the tree query lean and avoids fetching potentially large markdown bodies for nodes the user never inspects. Apollo Client's normalized cache ensures revisiting a previously loaded artifact is instant.
 
-**Enum display:** GraphQL enums (`FAKE_DOOR`, `USER_INTERVIEW`, `READY_FOR_BUILD`, etc.) are rendered as human-readable labels via a lookup map in `lib/enums.ts`. Example: `FAKE_DOOR` → "Fake Door", `READY_FOR_BUILD` → "Ready for Build", `AB_TEST` → "A/B Test". The map covers all enum types used in the discovery schema.
-
-The detail panel uses the gravitational hierarchy principle: the node name and status are dominant, metadata is secondary, relationships are tertiary.
+**Schema work.** The current `opportunitySubgraph` query is a good start but does not cover the `objectiveSubgraph` case. A new `objectiveSubgraph` traversal is needed that returns Objective → Opportunity → Idea → Assumption → Experiment in a single nested response, parallel to the existing query. See "Schema work" below.
 
 ### Untested assumptions view (`/assumptions`)
 
-A focused list view powered by the `untestedAssumptions` query. Filterable by importance level. Each assumption links back to its parent idea and opportunity. This view answers the question: "What don't we know yet, and how important is it?"
+A focused list view powered by the `untestedAssumptions` query. Filterable by importance level. Each row shows the assumption name, importance, and an `ArtifactLink` to its parent idea (and through that idea, its opportunity). Each row is also itself an `ArtifactLink` to `/assumption/:id`. This view answers the question: "What don't we know yet, and how important is it?"
 
-**Schema prerequisite:** The current `untestedAssumptions` `@cypher` query returns raw `Assumption` nodes. `@cypher` return types do not automatically resolve `@relationship` fields, so the `assumedBy` traversal (needed to show "which idea depends on this assumption") will not work as a nested field on the result. Before this view can show parent context, the `@cypher` query in `packages/graph/src/typeDefs/discovery.graphql` must be rewritten to explicitly traverse and return parent idea data in the projection — similar to how `opportunitySubgraph` returns nested `IdeaWithAssumptions`. This requires a new return type (e.g., `UntestedAssumptionWithContext`) that includes the parent idea's `id` and `name`.
+The schema rewrite required to surface parent-idea context is described in "Schema work" below.
+
+### Schema work
+
+This milestone introduces three schema changes in `packages/graph/src/typeDefs/discovery.graphql`. They are all in service of the UI but they belong on the data layer side of the boundary, and they should be reviewed alongside the UI work, not assumed.
+
+**1. `objectiveSubgraph` traversal** — A new `@cypher` query that returns Objective → Opportunity → Idea → Assumption → Experiment as a single nested response. Parallels the existing `opportunitySubgraph`. Required by `/tree/objective/:id`.
+
+**2. `untestedAssumptions` rewrite for parent context** — The current `@cypher` query returns raw `Assumption` nodes. `@cypher` return types do not automatically resolve `@relationship` fields, so the `assumedBy` traversal needed to show "which idea depends on this assumption" does not work as a nested field on the result. The query must be rewritten to explicitly traverse and return parent idea data in the projection — similar to how `opportunitySubgraph` returns nested `IdeaWithAssumptions`. This requires a new return type (`UntestedAssumptionWithContext`) that includes the parent idea's `id` and `name`.
+
+**3. Orphan queries** — `orphanedOpportunities`, `unrootedIdeas`, `unrootedAssumptions`. Each returns artifacts of the given type that have no incoming parent edge in the natural hierarchy. `orphanedOpportunities` already exists as a count in `discoveryHealth`; the new queries return the full nodes so the dashboard and tree rails can list them. These can be implemented as `@cypher` queries on each type or as a single shared `unrooted(type: ArtifactType!)` query — the spec leaves the shape to the implementer, but each must return enough fields for an `ArtifactLink` (id, name, status, plus type-specific badge fields).
+
+All three changes propagate through GraphQL codegen to typed Apollo operations on the client. The rewrite of `untestedAssumptions` is a breaking change for any current consumers; given that the only current consumer is the test suite and the assumptions view doesn't exist yet, this is a clean change to make now.
 
 ### GraphQL operations
 
@@ -287,8 +361,8 @@ query ObjectivesWithOpportunities($domainSlug: String!) {
   }
 }
 
-# Subgraph query returns structural fields only — no body text.
-# Body is lazy-loaded per node via NodeDetail queries (see below).
+# Subgraph queries return structural fields only — no body text.
+# Body is lazy-loaded per node via the Detail queries below (fired by ArtifactPage).
 query OpportunitySubgraph($opportunityId: ID!, $domainSlug: String!) {
   opportunitySubgraph(opportunityId: $opportunityId, domainSlug: $domainSlug) {
     id
@@ -314,6 +388,58 @@ query OpportunitySubgraph($opportunityId: ID!, $domainSlug: String!) {
         }
       }
     }
+  }
+}
+
+# New traversal — Objective → Opportunity → Idea → Assumption → Experiment.
+# Parallels opportunitySubgraph but rooted one level higher. Required by the
+# /tree/objective/:id route. See "Schema work" below.
+query ObjectiveSubgraph($objectiveId: ID!, $domainSlug: String!) {
+  objectiveSubgraph(objectiveId: $objectiveId, domainSlug: $domainSlug) {
+    id
+    name
+    status
+    opportunities {
+      id
+      name
+      status
+      hmw
+      ideas {
+        id
+        name
+        status
+        assumptions {
+          id
+          name
+          status
+          importance
+          evidence
+          experiments { id name status method result }
+        }
+      }
+    }
+  }
+}
+
+# Orphan queries — drive the dashboard orphan sections and the
+# "Unrooted at this level" disclosure in tree projection rails.
+# Each returns artifacts of the given type that have no parent
+# in the natural hierarchy.
+query OrphanedOpportunities($domainSlug: String!) {
+  orphanedOpportunities(domainSlug: $domainSlug) {
+    id name status hmw
+  }
+}
+
+query UnrootedIdeas($domainSlug: String!) {
+  unrootedIdeas(domainSlug: $domainSlug) {
+    id name status
+  }
+}
+
+query UnrootedAssumptions($domainSlug: String!) {
+  unrootedAssumptions(domainSlug: $domainSlug) {
+    id name status importance
   }
 }
 
@@ -399,11 +525,17 @@ API key is passed via environment variable. In development, `.env.local` holds t
 
 Route-level data loading uses TanStack Router's `loader` functions with Apollo Client's `useSuspenseQuery`:
 
-1. **Route loaders** initiate the primary query for each route (e.g., `discoveryHealth` + `objectives` for the dashboard, `opportunitySubgraph` for the tree view). The loader calls `client.query()` to warm the Apollo cache.
+1. **Route loaders** initiate the primary query for each route. The loader calls `client.query()` to warm the Apollo cache before the component mounts.
+   - `/` → `discoveryHealth`, `objectives`, orphan queries
+   - `/tree/objective/:id` → `objectiveSubgraph`
+   - `/tree/opportunity/:id` → `opportunitySubgraph`
+   - `/<type>/:id` → the corresponding `<Type>Detail` query
+   - `/assumptions` → `untestedAssumptions`
 2. **React Suspense boundaries** in the component tree handle loading states. Each route wraps its content in a `<Suspense fallback={...}>` boundary.
-3. **Detail panel** uses `useSuspenseQuery` with the selected node's ID. When the user clicks a tree node, the detail query fires and the panel shows a loading state via its own Suspense boundary. Apollo's normalized cache means re-selecting a previously viewed node is instant.
+3. **`ArtifactPage`** uses `useSuspenseQuery` with the artifact's ID. The detail query fires on mount; Apollo's normalized cache means navigating back to a previously visited artifact is instant.
+4. **Tree rail** persists across navigations within the same projection. The subgraph query is fetched once when the user enters `/tree/...`, and subsequent navigation to artifact pages within that projection does not re-fetch it. The rail's selected-node highlight updates from the route params.
 
-This avoids the render-then-fetch waterfall: the route loader starts fetching before the component mounts, and Suspense handles the loading UI declaratively.
+This avoids the render-then-fetch waterfall: the route loader starts fetching before the component mounts, and Suspense handles the loading UI declaratively. The hypertext model means most lateral navigation is between artifact pages of similar size, so the loading state is small and brief.
 
 ### GraphQL codegen
 
@@ -473,12 +605,13 @@ No pagination needed in the initial version. Discovery spaces are typically smal
 ### Accessibility
 
 - WCAG 2.1 AA compliance as the baseline.
-- Keyboard navigation throughout: arrow keys for tree traversal, Tab between panels, Enter to select.
-- Node types distinguished by icon + text label, not color alone.
+- Keyboard navigation throughout: arrow keys for tree traversal, Tab between focus zones (sidebar / tree rail / artifact page), Enter to navigate.
+- Node types distinguished by icon + text label, not color alone, in both the tree rail and inline `ArtifactLink` components.
 - Status badges include text, not just color.
-- Focus management: selecting a tree node should not steal focus from the tree. Detail panel is a separate focus zone.
+- Focus management: navigating from a tree node to its artifact page moves focus to the artifact page heading; tree rail retains its selection highlight. Pressing Escape from the artifact page returns focus to the tree node it came from (when applicable).
+- Inline `ArtifactLink` components are rendered as semantic `<a>` elements with descriptive accessible names ("Idea: Graph-backed artifact store, status Building") so that screen readers announce both the type and the status, not just the title.
 - `prefers-reduced-motion` respected: micro-interactions reduce to instant transitions.
-- Semantic HTML: tree uses `role="tree"` / `role="treeitem"` with `aria-expanded`.
+- Semantic HTML: tree rail uses `role="tree"` / `role="treeitem"` with `aria-expanded`. Artifact pages use heading hierarchy (`h1` for the artifact name, `h2` for relationship section labels).
 
 ### Security
 
@@ -496,11 +629,23 @@ No production observability in this milestone. Add when the app is deployed beyo
 
 ## Alternatives Considered
 
+### Tree projection as the primary view (instead of hypertext + tree)
+
+A version of the explorer where the expandable tree is the primary view, with a node-detail side panel for the currently selected node. (This was the shape of the spec's first draft.)
+
+**Why not:** The tree projection is one *projection* of a non-hierarchical graph, not the graph itself. Many of the interesting traversals are lateral — "this assumption is referenced by these three ideas," "this experiment invalidated assumptions in two different opportunities" — and a sidebar tree pushes those traversals into a detail panel that's neither linkable nor the primary surface. The hypertext model (artifact pages with clickable typed-relationship links) directly represents lateral navigation; the tree becomes one entry point alongside the dashboard and filtered list views. See the [wiki-style discovery navigator idea](../../discovery/ideas/wiki-style-discovery-navigator.md) and its [critique](../../discovery/critiques/critique-of-wiki-style-discovery-navigator.md) for the discovery thinking that informed this choice.
+
 ### Force-directed graph visualization instead of tree
 
 A force-directed graph rendering all discovery nodes with edges between them. Visually striking and directly represents the graph model.
 
-**Why not:** Force-directed layouts are notoriously difficult to make navigable for working purposes. They look good in demos but are hard to read when the graph has more than ~20 nodes. The tree view provides the same structural information in a more immediately usable form. Graph visualization is a strong second interaction paradigm to add later, not the foundation.
+**Why not:** Force-directed layouts are notoriously difficult to make navigable for working purposes. They look good in demos but are hard to read when the graph has more than ~20 nodes. The hypertext + tree-projection combination provides the same structural information in a more immediately usable form. A spatial / canvas rendering of the graph is a long-term direction (see ADR-003), not the foundation for the first read-only milestone.
+
+### Wiki-style editing as v1
+
+A wiki-style editor where users edit artifact pages in place, Notion-style, as the v1 experience.
+
+**Why not in this milestone:** Editing in a graph context is necessarily a mixed-initiative collaborative process with per-artifact-type interactions and backend tools. Building a generic wiki editor first would lock in editing affordances that turn out to be wrong once the agent collaboration model is in place. v1 is read-only on purpose, validating the IA before committing to any editing model. The "wiki" framing was useful for thinking about navigational hypertext — which we adopted — but the editing affordances it implies are deliberately deferred.
 
 ### Next.js instead of Vite + React
 
@@ -538,14 +683,19 @@ Extracting shared components into a workspace package for reuse across future ap
 3. **shadcn/ui `components.json` configuration.** The `components.json` file controls base color scheme, CSS variable prefix, and component style ("default" vs "new-york"). The "new-york" style is sharper and denser — likely a better match for the Etak aesthetic than "default". This should be decided during scaffolding; the choice affects every installed component.
    - **Suggested resolution:** Use "new-york" style, CSS variables enabled, no prefix (tokens are already namespaced).
 
-4. **`untestedAssumptions` schema rewrite.** The current `@cypher` query returns raw nodes that can't resolve `@relationship` fields. A new return type (`UntestedAssumptionWithContext`) and updated Cypher are needed before the assumptions view can show parent idea context. This is a schema change in `packages/graph`, not a UI-only concern.
-   - **Suggested resolution:** Implement as part of the first implementation story for the assumptions view. The schema change is small and testable independently.
+4. **Tree rail persistence across artifact navigation.** The spec says the tree rail stays open when the user navigates from a tree projection to an artifact page reached from within it. The exact rule for "reached from within it" — same browser session? same project? same artifact type? — needs to be pinned down during implementation. Initial proposal: the rail stays open as long as the user is on an artifact whose ID is present in the currently loaded subgraph; navigating to an artifact outside the subgraph closes the rail (with a "Show in tree" affordance on the artifact page when applicable).
+   - **Impact:** Navigation feel. Worth getting right but reversible.
+
+5. **Orphan-query implementation shape.** The schema work calls for `orphanedOpportunities`, `unrootedIdeas`, and `unrootedAssumptions` queries but leaves the choice between per-type queries and a single shared `unrooted(type:)` query open.
+   - **Suggested resolution:** Per-type queries. Each can be a one-line `@cypher` that's easy to read in the schema, and the call sites are explicit about what they're asking for.
 
 ### Resolved Questions
 
 - **Semantic color values** — Derived from the existing palette and included in the `@theme` block: `--warning` (desaturated amber), `--success` (teal), `--destructive` (desaturated red), `--info` (ocean).
 - **API key management for development** — The API supports `DISABLE_AUTH=true` which falls back to the `default` domain. No key management needed for local dev.
 - **Domain selector** — Eliminated. The API key determines the domain. Routes no longer include `/:domainSlug`.
+- **Hierarchical breadcrumbs** — Rejected. The graph is non-hierarchical and orphan-tolerant; a single canonical parent path does not exist. Upward context is shown via `RelationshipList` sections and the optional tree rail.
+- **`untestedAssumptions` schema rewrite** — Moved into "Schema work" as one of three coordinated schema changes for this milestone, alongside `objectiveSubgraph` and the orphan queries.
 
 ## Risks
 
