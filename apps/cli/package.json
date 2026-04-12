@@ -1,0 +1,33 @@
+{
+  "name": "@etak/cli",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Etak CLI — local-first interface for discovery artifacts",
+  "bin": {
+    "etak": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/cli.ts",
+    "test": "npm run build && vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsup": "^8.3.5",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.4"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
