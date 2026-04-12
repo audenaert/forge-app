@@ -17,7 +17,7 @@ acceptance_criteria:
   - "The loader issues the UntestedAssumptions query against the rewritten schema (UntestedAssumptionWithContext) and warms the Apollo cache before mount"
   - "GraphQL codegen is regenerated in apps/web to pick up the new UntestedAssumptionWithContext type and the typed document reflects the new shape"
   - "The view renders a list of untested assumptions. Each row shows: an <ArtifactLink> to /assumption/:id (the assumption itself), the importance level as a badge (human-readable label), the evidence text, and an <ArtifactLink> to /idea/:id for the parent idea"
-  - "A filter control lets the user filter by importance: All, HIGH, MEDIUM, LOW; changing the filter updates the URL search param (e.g., ?importance=HIGH) and re-issues or re-filters the query accordingly"
+  - "A filter control lets the user filter by importance: All, HIGH, MEDIUM, LOW; changing the filter updates the URL search param (e.g., ?importance=HIGH) and re-issues or re-filters the query accordingly. The filter value maps onto the query's `minImportance` argument (HIGH → `minImportance: HIGH`, MEDIUM → `minImportance: MEDIUM`, LOW → `minImportance: LOW`, All → argument omitted / null)"
   - "Navigating from the dashboard warning 'untested high-importance assumptions' lands here with ?importance=HIGH pre-applied"
   - "Enum values for importance and status render via lib/enums.ts, not raw SCREAMING_SNAKE_CASE"
   - "Empty state: when the filter yields zero results, the <EmptyState> component renders with copy appropriate to the filter (e.g., 'No HIGH-importance untested assumptions — nice work.')"

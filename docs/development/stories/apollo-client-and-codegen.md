@@ -15,7 +15,7 @@ acceptance_criteria:
   - "@graphql-codegen/cli ^5.x and @graphql-codegen/client-preset are installed as devDependencies"
   - "apps/web/codegen.ts configures the client preset against the running API schema at http://localhost:4000/graphql with documentMode: documentNode, outputting to src/lib/graphql/generated/"
   - "apps/web/package.json has a `codegen` script (`graphql-codegen`) and the generated directory is added to .gitignore's allowlist so codegen output IS committed"
-  - "A lightweight smoke query (e.g., __typename or a trivial discoveryHealth call behind a try/catch) can run against a live API and returns without throwing in a manual dev check — verified by running codegen successfully against the live API"
+  - "`npm run codegen --workspace=apps/web` runs successfully against a locally-running apps/api and writes typed documents into src/lib/graphql/generated/ — this proves the schema introspection + output pipeline end to end (no hand-rolled smoke query required)"
   - "Vitest tests for apps/web/src/lib/apollo.ts verify the client is constructed with the expected uri and header wiring, using a mocked environment"
   - "A README section or apps/web/README.md snippet documents the codegen workflow (start api, run npm run codegen --workspace=apps/web)"
 ---
