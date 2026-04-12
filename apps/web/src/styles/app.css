@@ -1,0 +1,8 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens land in the `design-tokens-and-appshell` story. This empty
+ * @theme block is a placeholder so Tailwind v4's CSS-first config is wired.
+ */
+@theme {
+}
