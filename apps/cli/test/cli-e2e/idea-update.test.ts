@@ -202,6 +202,82 @@ only description
     expect(env.errors[0]?.message).toMatch(/mutually exclusive/);
   });
 
+  it('byte-level round-trip: update --status leaves the body portion untouched', () => {
+    // The M1-S4 adapter contract suite proves the parser preserves
+    // section content byte-for-byte. This test proves the command layer
+    // doesn't accidentally break that promise for a trivial
+    // frontmatter-only update.
+    //
+    // Approach: create an idea, then hand-edit the file with awkward
+    // content (parser-bait: fenced code with `##`, nested lists, inline
+    // code in headings, trailing whitespace, mixed tabs in code). Then
+    // run one body-replace via --body-file to push the crafted content
+    // through the serializer, so the on-disk form is already in
+    // canonical shape. Snapshot THAT as `before`. Running a
+    // frontmatter-only update after it must leave the body portion
+    // byte-for-byte identical — the load-bearing promise.
+    const { dir: d2, cleanup: c2 } = makeTempProject();
+    cleanups.push(c2);
+    runCli(['init'], { cwd: d2 });
+    runCli(['idea', 'create', '--name', 'Round Trip Test'], { cwd: d2 });
+
+    const file = resolve(d2, '.etak/artifacts/ideas/round-trip-test.md');
+    const crafted = [
+      '## Description',
+      '',
+      'A block of prose first.  ',
+      '',
+      '```markdown',
+      '## Not a real heading',
+      'fenced code should survive untouched',
+      '\tmixed\ttabs\tin\tcode',
+      '```',
+      '',
+      'Trailing paragraph.',
+      '',
+      '## Why This Could Work',
+      '',
+      'With `etak init` we bootstrap the project.',
+      '',
+      '- top level item',
+      '  - nested item with `inline code`',
+      '  - nested item with **emphasis**',
+      '- another top level',
+      '  1. numbered child',
+      '  2. another numbered child',
+      '',
+      '## Open Questions',
+      '',
+      'What about `--force-suffix`? And what if someone writes `##` inline?',
+      '',
+    ].join('\n');
+    const bodyPath = resolve(d2, 'crafted-body.md');
+    writeFileSync(bodyPath, crafted, 'utf8');
+    runCli(['idea', 'update', 'round-trip-test', '--body-file', bodyPath], { cwd: d2 });
+
+    const before = readFileSync(file, 'utf8');
+    // Split at the closing frontmatter delimiter — everything after that
+    // is the body portion we expect to preserve byte-for-byte.
+    const bodyMarker = '\n---\n';
+    const idxBefore = before.indexOf(bodyMarker, before.indexOf('---') + 3);
+    const bodyBefore = before.slice(idxBefore + bodyMarker.length);
+
+    const result = runCli(
+      ['idea', 'update', 'round-trip-test', '--status', 'exploring'],
+      { cwd: d2 },
+    );
+    expect(result.status).toBe(0);
+
+    const after = readFileSync(file, 'utf8');
+    const idxAfter = after.indexOf(bodyMarker, after.indexOf('---') + 3);
+    const bodyAfter = after.slice(idxAfter + bodyMarker.length);
+
+    // Strict string equality on the body portion — load-bearing promise.
+    expect(bodyAfter).toBe(bodyBefore);
+    // Frontmatter was updated.
+    expect(after).toContain('status: exploring');
+  });
+
   it('applies --status plus multiple --section flags in a single atomic update', () => {
     const file = resolve(dir, '.etak/artifacts/ideas/target-idea.md');
     const result = runCli(

@@ -225,7 +225,14 @@ function buildBodyDocument(
     const next = h2s[i + 1];
     const endOffset = next ? next.startOffset : source.length;
     const raw = source.slice(h.contentStartOffset, endOffset);
-    const content = raw.replace(/\s+$/, '');
+    // Strip a single leading newline (the blank line that conventionally
+    // separates a heading from its content) and trailing whitespace.
+    // Without this, the serializer's canonical `## Heading\n\n${content}`
+    // accretes one extra blank line per round-trip: the parser captures
+    // the separator blank line, the serializer re-adds it, and the next
+    // read treats the original separator as real content. This was
+    // surfaced by the M1-S6 byte-level round-trip e2e test.
+    const content = raw.replace(/^\n/, '').replace(/\s+$/, '');
 
     const matched = matchTemplateSection(h.text, sectioned);
     if (matched) {
