@@ -25,7 +25,7 @@ import { ObjectiveFrontmatterSchema, ObjectiveBodyTemplate } from '../../schemas
 import { ValidationError } from '../../adapters/errors.js';
 
 import type { CommandContextFactory } from './shared.js';
-import { deriveSlug, readFileUtf8, readStdin } from './shared.js';
+import { deriveSlug, readFileUtf8, readStdin } from '../shared.js';
 
 export interface ObjectiveCreateOptions {
   name?: string;

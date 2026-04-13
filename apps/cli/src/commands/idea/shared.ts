@@ -1,13 +1,7 @@
-// Shared helpers for the `etak idea *` command group.
-//
-// These utilities are intentionally tiny and scoped to idea-specific
-// command-layer concerns: slug derivation from human names, stdin reading,
-// and the context factory shape that every leaf handler accepts. M2 will
-// generalize slug derivation across the other five types; at that point the
-// pure helpers here are the obvious extraction candidates (see the commit
-// message and PR description for the M2 hand-off notes).
-
-import { readFile } from 'node:fs/promises';
+// Module-local types for the `etak idea *` command group. Generic helpers
+// (`deriveSlug`, `readStdin`, `readFileUtf8`, `collectStrings`, `splitKv`,
+// `scaffoldCanonicalBody`, `REQUIRED_SECTION_PLACEHOLDER`) live in
+// `../shared.ts` alongside their cross-type counterparts.
 
 import type { CommandContext, CreateCommandContextOptions } from '../../context.js';
 
@@ -20,51 +14,3 @@ import type { CommandContext, CreateCommandContextOptions } from '../../context.
 export type CommandContextFactory = (
   opts: CreateCommandContextOptions,
 ) => Promise<CommandContext>;
-
-/**
- * Kebab-case slug derivation per design spec §5. Matches the slug regex
- * `^[a-z0-9][a-z0-9-]*[a-z0-9]$`:
- *   1. Lowercase the input.
- *   2. Replace any run of non `[a-z0-9]` characters with a single `-`.
- *   3. Trim leading/trailing `-`.
- *   4. Truncate to 80 characters at the last safe `-` boundary.
- *
- * Returns `null` for inputs that collapse to fewer than 3 characters — the
- * caller raises a ValidationError suggesting `--slug`.
- */
-export function deriveSlug(name: string): string | null {
-  const lowered = name.toLowerCase();
-  const replaced = lowered.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  if (replaced.length === 0) return null;
-  let candidate = replaced;
-  if (candidate.length > 80) {
-    const truncated = candidate.slice(0, 80);
-    const lastDash = truncated.lastIndexOf('-');
-    candidate = lastDash > 0 ? truncated.slice(0, lastDash) : truncated;
-    candidate = candidate.replace(/-+$/g, '');
-  }
-  if (candidate.length < 3) return null;
-  if (!/^[a-z0-9]/.test(candidate)) return null;
-  if (!/[a-z0-9]$/.test(candidate)) return null;
-  return candidate;
-}
-
-/**
- * Read all of stdin as a utf-8 string. Used by body/section flags that
- * accept `--body-stdin` or `--stdin`. Returns an empty string when stdin is
- * a TTY to avoid a hang; the command handler surfaces that as a validation
- * error so interactive misuse fails fast.
- */
-export async function readStdin(): Promise<string> {
-  if (process.stdin.isTTY) return '';
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) {
-    chunks.push(chunk instanceof Buffer ? chunk : Buffer.from(chunk));
-  }
-  return Buffer.concat(chunks).toString('utf8');
-}
-
-/** Read a file and return its contents as utf-8. Bubbles up ENOENT etc. */
-export async function readFileUtf8(path: string): Promise<string> {
-  return readFile(path, 'utf8');
-}

@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { deriveSlug } from '../../../src/commands/objective/shared.js';
+import { deriveSlug } from '../../../src/commands/shared.js';
 import { splitKv } from '../../../src/commands/objective/update.js';
 import { ValidationError } from '../../../src/adapters/errors.js';
 

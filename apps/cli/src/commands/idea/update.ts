@@ -41,7 +41,7 @@ import { ValidationError } from '../../adapters/errors.js';
 import { IdeaStatusSchema } from '../../schemas/index.js';
 
 import type { CommandContextFactory } from './shared.js';
-import { readFileUtf8, readStdin } from './shared.js';
+import { readFileUtf8, readStdin } from '../shared.js';
 
 export interface IdeaUpdateOptions {
   name?: string;

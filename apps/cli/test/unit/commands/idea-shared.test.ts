@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { deriveSlug } from '../../../src/commands/idea/shared.js';
+import { deriveSlug } from '../../../src/commands/shared.js';
 import { splitKv } from '../../../src/commands/idea/update.js';
 import { ValidationError } from '../../../src/adapters/errors.js';
 

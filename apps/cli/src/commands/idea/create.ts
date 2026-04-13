@@ -28,7 +28,7 @@ import { IdeaFrontmatterSchema, IdeaBodyTemplate } from '../../schemas/index.js'
 import { ValidationError } from '../../adapters/errors.js';
 
 import type { CommandContextFactory } from './shared.js';
-import { deriveSlug, readFileUtf8, readStdin } from './shared.js';
+import { deriveSlug, readFileUtf8, readStdin } from '../shared.js';
 
 export interface IdeaCreateOptions {
   name?: string;
