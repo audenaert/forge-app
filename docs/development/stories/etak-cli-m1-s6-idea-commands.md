@@ -16,7 +16,7 @@ acceptance_criteria:
   - "`etak idea create` supports link flags from the design spec (e.g., `--addresses <slug>`) and validates target existence per the spec's dangling-reference rule"
   - "`etak idea get <slug>` prints the artifact (human or JSON); exits 2 if the slug doesn't exist"
   - "`etak idea list` prints all ideas; supports filtering per the spec"
-  - "`etak idea update <slug> --section <name> <content>` replaces one section and round-trips unrelated sections cleanly, including any human drift"
+  - "`etak idea update <slug> --section <section-slug>=<content>` replaces one section and round-trips unrelated sections cleanly, including any human drift"
   - "`etak idea update <slug> --body <content>` and `--body-file <path>` replace the whole body; stdin input works for large content"
   - "`etak idea update <slug> --<frontmatter-field> <value>` updates frontmatter fields"
   - "`etak idea link <slug> --addresses <opportunity-slug>` adds a link; removing a link works per the spec's flag shape"
