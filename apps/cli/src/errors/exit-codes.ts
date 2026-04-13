@@ -4,12 +4,20 @@
 //   0 = success
 //   1 = validation error (Zod or user-correctable input failure)
 //   2 = not found (slug/file doesn't exist)
-//   3 = adapter/IO error (filesystem, disk, missing project root, NotWired)
+//   3 = adapter/IO error or environment error (filesystem, disk, missing
+//       project root, NotWired, uninitialized project, missing config,
+//       invalid ETAK_BACKEND value — anything environmental rather than
+//       user-input-shaped)
 //   4 = unknown command / usage error
 //
 // Any uncaught thrown value that isn't an adapter error maps to 3 as a
 // conservative default — it means the chassis caught something it didn't
 // recognize and is best-effort reporting it as an IO/runtime failure.
+// This is why `E_INTERNAL` (unexpected error code) also resolves to exit
+// 3: unexpected runtime failures are almost always environmental (a
+// runtime, filesystem, or process-level problem), not user input. If
+// something ever surfaces as a genuine logic bug rather than an
+// environment issue, we can split out a dedicated code then.
 
 import { ZodError } from 'zod';
 import {

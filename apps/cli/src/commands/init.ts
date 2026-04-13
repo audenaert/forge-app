@@ -229,5 +229,7 @@ export function initHumanSummary(data: InitResult): string {
   if (data.created.length === 0) {
     return `etak project already initialized at ${data.root}`;
   }
-  return `initialized etak project at ${data.root} (+${data.created.length} paths)`;
+  const n = data.created.length;
+  const noun = n === 1 ? 'path' : 'paths';
+  return `initialized etak project at ${data.root} (+${n} ${noun})`;
 }

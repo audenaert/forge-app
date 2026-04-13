@@ -22,6 +22,30 @@ export interface ChassisGlobals {
   readonly exit: (code: number) => void;
 }
 
+// Why these peeks exist at all
+// ---------------------------------------------------------------------------
+// commander has a perfectly good `--output <mode>` option with
+// `.choices(['json', 'human'])`. The tempting "simplification" is to use it
+// and delete this module. DO NOT. Commander's `choices` validation routes
+// bad values through `commander.invalidArgument`, which the chassis maps to
+// exit 4 (usage error). Design spec §4 requires exit 1 (validation error)
+// for bad `--output` values — it's user-correctable input, not a usage
+// mistake like `etak frobnicate`. We peek argv ourselves, validate early,
+// and surface a ValidationError through the chassis envelope so the exit
+// code lines up with the spec's exit-code table (§4.3).
+//
+// The peek also has to run BEFORE commander parses so that commander-level
+// errors (unknown command, unknown flag) can be rendered through the
+// correct output mode — the user's `--output json` still needs to be
+// honored when commander itself is what rejected the invocation.
+//
+// POSIX `--` end-of-options handling
+// ---------------------------------------------------------------------------
+// Both peeks stop scanning at a bare `--` token. After `--`, everything is
+// a positional argument — even if it looks like a flag. M2+ commands that
+// accept free-form trailing args (e.g. a description containing the
+// literal text `--output`) must not have that misread as a mode switch.
+
 /**
  * Read `--output` and `--color` from argv before commander parses, so the
  * chassis can pick the right renderer even for errors raised inside
@@ -36,6 +60,9 @@ export function peekGlobalFlags(argv: readonly string[]): {
   const out: { output?: 'human' | 'json'; color?: boolean } = {};
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
+    // POSIX end-of-options: stop scanning. Anything after `--` is a
+    // positional, not a flag, regardless of how it looks.
+    if (arg === '--') break;
     if (arg === '--output' || arg === '-o') {
       const next = argv[i + 1];
       if (next === 'json' || next === 'human') out.output = next;
@@ -56,11 +83,21 @@ export function peekGlobalFlags(argv: readonly string[]): {
  * whatever it was. Used to validate the flag value up front and surface
  * a structured validation error (exit 1) on unknown values — the spec
  * only defines "human" and "json".
+ *
+ * Returns `undefined` when the flag is absent OR when `--output`/`-o`
+ * appears as the last token with no value following. The latter falls
+ * back to the default mode rather than exploding; if the user meant to
+ * pass a value and forgot it, they'll discover the miss on the next
+ * invocation. This keeps the peek total — it never throws.
  */
 export function peekRawOutput(argv: readonly string[]): string | undefined {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
+    // POSIX end-of-options: everything after `--` is positional.
+    if (arg === '--') return undefined;
     if (arg === '--output' || arg === '-o') {
+      // `--output` with no value following: return undefined, not the
+      // next undefined slot. Fall back to the default mode.
       return argv[i + 1];
     }
     if (arg?.startsWith('--output=')) {

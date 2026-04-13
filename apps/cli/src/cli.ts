@@ -220,8 +220,13 @@ export async function run(opts: MainOptions): Promise<number> {
     if (err instanceof CommanderError) {
       return handleCommanderError(err, globals);
     }
-    // Shouldn't happen — handlers go through runCommand which never
-    // throws past the boundary. Best-effort render as an internal error.
+    // Defensive: every handler goes through `runCommand`, which catches
+    // internally and never rethrows past the boundary — so in practice
+    // only CommanderError reaches this catch. We keep the branch to guard
+    // against a future change that introduces a sync throw outside a
+    // handler (e.g. a top-level wiring error during `buildProgram`). If
+    // that ever fires, we still want it rendered through the envelope
+    // rather than crashing with an unhandled rejection.
     return handleUnexpectedError(err, globals);
   }
 
