@@ -74,20 +74,23 @@ export class NotFoundError extends AdapterBaseError {
   }
 }
 
-/** Adapter/IO error (filesystem permission, corrupted file, network). Exit 3. */
+/**
+ * Adapter/IO error (filesystem permission, corrupted file, network). Exit 3.
+ *
+ * `code` defaults to `E_IO`. Callers that want a more specific structured
+ * code (e.g. `E_ATOMIC_WRITE`, `E_PATH_ESCAPE`) pass it on the options
+ * object at construction — the field is `readonly` and never mutated after.
+ */
 export class AdapterError extends AdapterBaseError {
-  public readonly code: string = 'E_IO';
+  public readonly code: string;
   public readonly exitCode = 3;
 
   public constructor(
     message: string,
     opts?: { code?: string; location?: DriftLocation; details?: Record<string, unknown> },
   ) {
-    super(message, opts);
-    if (opts?.code) {
-      // Subclass-like override without changing the type.
-      (this as { code: string }).code = opts.code;
-    }
+    super(message, { location: opts?.location, details: opts?.details });
+    this.code = opts?.code ?? 'E_IO';
   }
 }
 
