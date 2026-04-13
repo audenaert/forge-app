@@ -92,22 +92,44 @@ export type BodyTemplate = SectionedBodyTemplate | OpaqueBodyTemplate;
  * Drift classification for a single parsed section. `canonical` means the
  * section matches the template exactly; `renamed` means the H2 text differs
  * from the canonical `name` but the position matches; `extra` means the
- * section is not in the template at all (design.md §3.5).
+ * section is not in the template at all (design.md §3.5). `preamble` is the
+ * synthetic status applied to content that appeared before the first H2,
+ * preserved heading-less so round-trip doesn't lose it.
  */
-export type BodySectionStatus = 'canonical' | 'extra' | 'renamed';
+export type BodySectionStatus = 'canonical' | 'extra' | 'renamed' | 'preamble';
 
 /**
- * One section as it appeared in the source document, after parsing. `nodes`
- * holds the mdast child nodes for the section and is typed as `unknown[]`
- * here because the parser is not yet implemented — M1-S4 will tighten this
- * to an mdast node type once the remark dependency lands.
+ * Body sections carry raw source content, not structured AST nodes.
+ *
+ * The adapter reads and writes each section as a byte-preserving slice of
+ * the original file (captured via AST position offsets) so human-authored
+ * formatting — whitespace, list markers, code fence indentation, line
+ * endings — round-trips intact. Round-trip fidelity is a load-bearing
+ * promise of the adapter (see the byte-preserving contract test); exposing
+ * pre-parsed mdast nodes here would either compete with that promise or
+ * drag the schemas package into the remark ecosystem. Consumers that need
+ * structured content (e.g. a future web UI rendering markdown) parse
+ * `content` on their own; the parse result is intentionally not cached on
+ * the section because no in-repo consumer benefits from it today. A
+ * forward-compatible `ast?` computed field can be added later without a
+ * breaking change if a consumer ever needs it.
+ *
+ * Decision record: PR #7 (M1-S3 schemas), PR #8 (M1-S4 adapter), and the
+ * schemas/adapter unification follow-up that resolved the `nodes` vs
+ * `content` mismatch in favor of `content: string`.
+ *
+ * One `BodySection` as it appeared in the source document, after parsing.
+ * `canonicalOrder` is set when `status === 'canonical'` (and for `renamed`
+ * sections the parser promoted from an `extra` match). `status: 'preamble'`
+ * marks content that appeared before the first H2 and is emitted
+ * heading-less on round-trip.
  */
 export interface BodySection {
-  readonly heading: string;
-  readonly slug: string;
-  readonly status: BodySectionStatus;
-  readonly canonicalOrder?: number;
-  readonly nodes: readonly unknown[];
+  heading: string;
+  slug: string;
+  status: BodySectionStatus;
+  canonicalOrder?: number;
+  content: string;
 }
 
 /**
@@ -116,8 +138,8 @@ export interface BodySection {
  * `warnings` carries any drift detected during parsing.
  */
 export interface BodyDocument {
-  readonly sections: readonly BodySection[];
-  readonly warnings: readonly DriftWarning[];
+  sections: BodySection[];
+  warnings: DriftWarning[];
 }
 
 // ---------------------------------------------------------------------------

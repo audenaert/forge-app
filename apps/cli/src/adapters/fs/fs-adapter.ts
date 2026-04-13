@@ -23,6 +23,8 @@ import type { StorageAdapter } from '../interface.js';
 import type {
   ArtifactRef,
   ArtifactType,
+  BodyDocument,
+  BodySection,
   DriftWarning,
 } from '../../schemas/index.js';
 import type {
@@ -30,8 +32,6 @@ import type {
   BodyUpdate,
   Document,
   ListFilter,
-  ParsedBodyDocument,
-  ParsedBodySection,
   UpdateChanges,
   WriteResult,
 } from '../operations.js';
@@ -173,7 +173,7 @@ export class FsAdapter implements StorageAdapter {
       mergedFrontmatter.type = ref.type;
     }
 
-    let nextBody: ParsedBodyDocument = existing.body;
+    let nextBody: BodyDocument = existing.body;
     const updateWarnings: DriftWarning[] = [];
     if (changes.body) {
       const applied = applyBodyUpdate(existing.body, changes.body, ref);
@@ -253,7 +253,7 @@ export class FsAdapter implements StorageAdapter {
 // --- helpers -----------------------------------------------------------------
 
 interface AppliedBodyUpdate {
-  body: ParsedBodyDocument;
+  body: BodyDocument;
   /**
    * Warnings that arose from applying the update itself, NOT the
    * warnings already on `body.warnings`. The caller merges these into
@@ -264,7 +264,7 @@ interface AppliedBodyUpdate {
 }
 
 function applyBodyUpdate(
-  body: ParsedBodyDocument,
+  body: BodyDocument,
   update: BodyUpdate,
   ref: ArtifactRef,
 ): AppliedBodyUpdate {
@@ -282,7 +282,7 @@ function applyBodyUpdate(
   // render it — silently materializing a new section on a \"replace\"
   // action was the reviewer's concern.
   const target = update.sectionSlug;
-  const nextSections: ParsedBodySection[] = body.sections.map((s) => {
+  const nextSections: BodySection[] = body.sections.map((s) => {
     if (s.slug === target) {
       return { ...s, content: update.content };
     }

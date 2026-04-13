@@ -9,9 +9,9 @@ import { describe, it, expect, afterEach } from 'vitest';
 
 import type {
   ArtifactRef,
+  BodyDocument,
   Document,
   DriftWarning,
-  ParsedBodyDocument,
   StorageAdapter,
 } from '../../src/index.js';
 import { NotWiredError, ValidationError } from '../../src/index.js';
@@ -502,7 +502,7 @@ function section(heading: string, content: string) {
 
 function buildBody(
   entries: Array<{ heading: string; content: string }>,
-): ParsedBodyDocument {
+): BodyDocument {
   return {
     sections: entries.map((e) => ({
       heading: e.heading,

@@ -28,21 +28,19 @@ import type { Root, RootContent, Heading, Yaml, Text, InlineCode } from 'mdast';
 
 import type {
   ArtifactRef,
+  BodyDocument,
+  BodySection,
   BodyTemplate,
   DriftWarning,
   SectionedBodyTemplate,
 } from '../../schemas/index.js';
 import { BODY_TEMPLATES } from '../../schemas/index.js';
-import type {
-  ArtifactFrontmatter,
-  ParsedBodyDocument,
-  ParsedBodySection,
-} from '../operations.js';
+import type { ArtifactFrontmatter } from '../operations.js';
 import { ValidationError } from '../errors.js';
 
 export interface ParseResult {
   frontmatter: ArtifactFrontmatter;
-  body: ParsedBodyDocument;
+  body: BodyDocument;
 }
 
 const processor = unified()
@@ -148,7 +146,7 @@ function buildBodyDocument(
   source: string,
   ref: ArtifactRef,
   template: BodyTemplate,
-): ParsedBodyDocument {
+): BodyDocument {
   const warnings: DriftWarning[] = [];
   const bodyStart = findBodyStartFromTree(tree);
 
@@ -210,7 +208,7 @@ function buildBodyDocument(
 
   // Any content between bodyStart and the first H2 is a preamble — preserve
   // it as an anonymous leading section so round-trip doesn't lose it.
-  const sections: ParsedBodySection[] = [];
+  const sections: BodySection[] = [];
   const preludeRaw = source.slice(bodyStart, h2s[0]!.startOffset);
   const preludeTrimmed = preludeRaw.replace(/^\n+/, '').replace(/\s+$/, '');
   if (preludeTrimmed.length > 0) {

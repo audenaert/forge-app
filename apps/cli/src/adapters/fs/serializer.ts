@@ -23,13 +23,13 @@
 // is what authors will actually notice in diffs.
 
 import { stringify as yamlStringify } from 'yaml';
-import type { BodyTemplate } from '../../schemas/index.js';
-import { BODY_TEMPLATES } from '../../schemas/index.js';
 import type {
-  ArtifactFrontmatter,
-  ParsedBodyDocument,
-  ParsedBodySection,
-} from '../operations.js';
+  BodyDocument,
+  BodySection,
+  BodyTemplate,
+} from '../../schemas/index.js';
+import { BODY_TEMPLATES } from '../../schemas/index.js';
+import type { ArtifactFrontmatter } from '../operations.js';
 
 /** Canonical frontmatter key order. Keys not in this list follow in insertion order. */
 const FRONTMATTER_KEY_ORDER: readonly string[] = [
@@ -49,7 +49,7 @@ const FRONTMATTER_KEY_ORDER: readonly string[] = [
 
 export function serializeDocument(
   frontmatter: ArtifactFrontmatter,
-  body: ParsedBodyDocument,
+  body: BodyDocument,
 ): string {
   const fm = serializeFrontmatter(frontmatter);
   const template = BODY_TEMPLATES[frontmatter.type];
@@ -76,7 +76,7 @@ export function serializeFrontmatter(frontmatter: ArtifactFrontmatter): string {
   return `---\n${yaml}\n---\n`;
 }
 
-function serializeBody(body: ParsedBodyDocument, template: BodyTemplate): string {
+function serializeBody(body: BodyDocument, template: BodyTemplate): string {
   // Opaque body (critique): exactly one section whose content is the
   // entire body, emitted headless.
   if (template.kind === 'opaque') {
@@ -100,7 +100,7 @@ function serializeBody(body: ParsedBodyDocument, template: BodyTemplate): string
   return `\n${parts.join('\n\n')}\n`;
 }
 
-function renderHeading(section: ParsedBodySection, template: BodyTemplate): string {
+function renderHeading(section: BodySection, template: BodyTemplate): string {
   // Canonical sections use the canonical template name. Renamed sections
   // and extras preserve the authored heading. Opaque templates never call
   // this path, so we can safely assume `kind === 'sectioned'` here.

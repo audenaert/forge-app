@@ -5,34 +5,24 @@
 // describe the persistent shape of artifacts on disk. Both layers coexist:
 //
 //   - `../schemas` owns the cross-cutting contract: ArtifactType, ArtifactRef,
-//     BodyTemplate, DriftWarning, StructuredError, etc. Anything a future
-//     non-filesystem adapter (graphql, etc.) would also need lives there.
+//     BodyTemplate, BodySection, BodyDocument, DriftWarning, StructuredError,
+//     etc. Anything a future non-filesystem adapter (graphql, etc.) would
+//     also need lives there.
 //
 //   - This file owns adapter-operation types: Document, WriteResult,
-//     UpdateChanges, ListFilter, and the parser's internal body shape.
-//     These are not validated against schemas — they're runtime plumbing.
+//     UpdateChanges, ListFilter. These are not validated against schemas —
+//     they're runtime plumbing.
 //
-// **Parser body shape — shape mismatch with schemas `BodySection`.**
-// The schemas package declares `BodySection.nodes: readonly unknown[]` as
-// a forward-looking placeholder: when M1-S3 landed, mdast nodes were the
-// assumed representation. M1-S4's parser deliberately chose raw-content
-// strings (`content: string`) so section bodies round-trip byte-for-byte
-// through write/read cycles — the reviewer explicitly pinned this behavior
-// in the byte-preserving round-trip contract test.
-//
-// Those two shapes are not compatible: `nodes: readonly unknown[]` cannot
-// carry a `string`. Reconciling them is a design decision that does not
-// belong in a cleanup PR — either schemas changes `BodySection` to carry
-// raw content (simplest), or the adapter gains a dual representation
-// (content + nodes), or the parser switches to mdast nodes and a
-// serializer-round-trip test (largest change). Until that decision is made,
-// the adapter keeps its raw-content `ParsedBodySection` type locally and
-// the schemas types remain the future-facing contract exposed to
-// non-adapter code.
+// Body sections are carried across this boundary as the schemas-package
+// `BodyDocument` (a list of `BodySection`s whose `content` is raw markdown).
+// See the comment block on `BodySection` in `../schemas/types.ts` for the
+// decision record on why the section carries raw content rather than a
+// pre-parsed mdast tree.
 
 import type {
   ArtifactRef,
   ArtifactType,
+  BodyDocument,
   DriftWarning,
 } from '../schemas/index.js';
 
@@ -50,37 +40,11 @@ export interface ArtifactFrontmatter {
   [key: string]: unknown;
 }
 
-/**
- * One authored section as the parser captured it from the source. `content`
- * is raw markdown (verbatim between heading offsets), `status` classifies
- * the section against the type's body template, and `canonicalOrder` is set
- * when `status === 'canonical'`. The `preamble` kind marks content that
- * appeared before the first H2 and is emitted heading-less on round-trip.
- */
-export interface ParsedBodySection {
-  heading: string;
-  slug: string;
-  status: 'canonical' | 'extra' | 'renamed' | 'preamble';
-  canonicalOrder?: number;
-  content: string;
-}
-
-/**
- * The parser's body document: an ordered list of `ParsedBodySection`s in
- * source order, plus any drift warnings gathered during parsing. See the
- * shape-mismatch note at the top of this file for why this is not the
- * schemas-package `BodyDocument`.
- */
-export interface ParsedBodyDocument {
-  sections: ParsedBodySection[];
-  warnings: DriftWarning[];
-}
-
 /** A fully parsed artifact domain object that the adapter round-trips. */
 export interface Document {
   ref: ArtifactRef;
   frontmatter: ArtifactFrontmatter;
-  body: ParsedBodyDocument;
+  body: BodyDocument;
   /** Drift warnings gathered during read/write. */
   warnings: DriftWarning[];
 }
