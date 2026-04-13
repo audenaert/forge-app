@@ -1,26 +1,21 @@
-// Shared shape for every per-type subcommand group.
+// Stub subcommand registration for artifact types that are not yet
+// implemented. M1-S6 ships real handlers for `idea`; M2 replaces the
+// registrations for the other five types (objective, opportunity,
+// assumption, experiment, critique) with real handlers.
 //
-// In M1-S5 all six types are stubs. M1-S6 replaces the `idea` leaves with
-// real handlers; M2 replaces the others. The chassis does NOT need to
-// change for those swaps — they are drop-in replacements for the
-// `action()` body below.
+// Leaving the stubs visible in `--help` keeps the surface documented while
+// the handlers remain empty. The stub shape is:
 //
-// The leaf-stub model does two things at once:
+//   1. For an uninitialized project, `createCommandContext()` throws
+//      `AdapterError{E_NOT_INITIALIZED}` — the boundary maps that to exit
+//      3 with a "run etak init" suggestion.
+//   2. For an initialized project, the handler proves the context is
+//      wired, then throws `UsageError` to exit 4 with "not implemented in
+//      M1".
 //
-//   1. For an uninitialized project, the handler calls
-//      `createCommandContext()` first, which walks up looking for `.etak/`.
-//      If none is found, it throws `AdapterError{E_NOT_INITIALIZED}` and
-//      the boundary maps that to exit 3 with a "run etak init" message —
-//      per story AC "non-init command in an uninitialized project exits 3".
-//
-//   2. For an initialized project, the handler proceeds far enough to
-//      prove the context is wired, then throws `UsageError` to exit 4
-//      with the "not implemented in M1" envelope. M1-S6 replaces that
-//      `throw` with `return envelopeSuccess(...)` from the real handler.
-//
-// `etak idea --help` (and the same for every other type) must still
-// enumerate create/get/list/update/link so the surface stays documented
-// while the handlers are empty.
+// Drop-in replacement: when M2 implements (say) `opportunity`, delete the
+// entry for `opportunity` from this file's iteration set and register its
+// real commands alongside `registerIdeaCommands` in `cli.ts`.
 
 import type { Command } from 'commander';
 import type { ArtifactType } from '../schemas/index.js';
@@ -29,13 +24,13 @@ import { runCommand } from '../errors/boundary.js';
 import { UsageError } from '../errors/exit-codes.js';
 import { createCommandContext } from '../context.js';
 
-export interface TypeSubcommandSpec {
+export interface StubSubcommandSpec {
   name: string;
   description: string;
 }
 
-/** The five leaf subcommands every artifact type exposes (per §1, no delete). */
-export const LEAF_SUBCOMMANDS: readonly TypeSubcommandSpec[] = [
+/** The five leaf subcommands every non-idea type currently stubs. */
+export const STUB_LEAVES: readonly StubSubcommandSpec[] = [
   { name: 'create', description: 'create a new artifact' },
   { name: 'get', description: 'fetch an artifact by slug' },
   { name: 'list', description: 'list artifacts of this type' },
@@ -44,21 +39,21 @@ export const LEAF_SUBCOMMANDS: readonly TypeSubcommandSpec[] = [
 ];
 
 /**
- * Wire a type-subcommand group onto the root program. For M1-S5 every leaf
- * is a stub. M1-S6 replaces the `idea` group (and only that one) with real
- * handlers — this function signature is the integration point.
+ * Wire a stub type-subcommand group. All leaves prove the context is wired
+ * and then throw UsageError ("not implemented in M1"). `etak <type>` with
+ * no subcommand is also a usage error.
  */
-export function registerTypeCommands(
+export function registerNotImplementedType(
   program: Command,
   type: ArtifactType,
   globals: ChassisGlobals,
 ): Command {
   const group = program
     .command(type)
-    .description(`manage ${type} artifacts`)
+    .description(`manage ${type} artifacts (not implemented in M1)`)
     .allowUnknownOption(false);
 
-  for (const leaf of LEAF_SUBCOMMANDS) {
+  for (const leaf of STUB_LEAVES) {
     group
       .command(leaf.name)
       .description(`${leaf.description} (not implemented in M1)`)
@@ -71,14 +66,9 @@ export function registerTypeCommands(
           streams: globals.streams,
           ...(globals.color !== undefined ? { color: globals.color } : {}),
           handler: async () => {
-            // Resolve the context first. This proves the project is
-            // initialized; an uninitialized project throws
-            // AdapterError{E_NOT_INITIALIZED} (→ exit 3) before the stub
-            // message ever runs.
-            //
-            // TODO(M1-S6 / M2): use `ctx.adapter` to implement the real
-            // handler. Currently we just prove the wiring and throw a
-            // stub UsageError.
+            // Prove the project is initialized. An uninitialized project
+            // throws AdapterError{E_NOT_INITIALIZED} (→ exit 3) before we
+            // reach the stub message.
             const ctx = await createCommandContext({
               cwd: globals.cwd,
               env: globals.env,

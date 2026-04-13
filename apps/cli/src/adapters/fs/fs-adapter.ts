@@ -176,9 +176,15 @@ export class FsAdapter implements StorageAdapter {
     let nextBody: BodyDocument = existing.body;
     const updateWarnings: DriftWarning[] = [];
     if (changes.body) {
-      const applied = applyBodyUpdate(existing.body, changes.body, ref);
-      nextBody = applied.body;
-      updateWarnings.push(...applied.warnings);
+      // Normalize single-op to a one-element array and fold — each op
+      // applies to the running body, accumulating warnings across the
+      // chain. Body-replace resets the running body for subsequent ops.
+      const ops = Array.isArray(changes.body) ? changes.body : [changes.body];
+      for (const op of ops) {
+        const applied = applySingleBodyOp(nextBody, op, ref);
+        nextBody = applied.body;
+        updateWarnings.push(...applied.warnings);
+      }
     }
 
     const text = serializeDocument(mergedFrontmatter, nextBody);
@@ -263,7 +269,7 @@ interface AppliedBodyUpdate {
   warnings: DriftWarning[];
 }
 
-function applyBodyUpdate(
+function applySingleBodyOp(
   body: BodyDocument,
   update: BodyUpdate,
   ref: ArtifactRef,

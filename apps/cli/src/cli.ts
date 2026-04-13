@@ -42,7 +42,8 @@ import {
   peekRawOutput,
   type ChassisGlobals,
 } from './cli-runtime.js';
-import { registerTypeCommands } from './commands/type-stub.js';
+import { registerNotImplementedType } from './commands/not-implemented.js';
+import { registerIdeaCommands } from './commands/idea/index.js';
 import { initHumanSummary, runInit, type InitOptions } from './commands/init.js';
 
 function readPackageVersion(): string {
@@ -120,20 +121,20 @@ function buildProgram(opts: BuildProgramOptions): Command {
       setExitCode(code);
     });
 
-  // --- etak <type> stub groups -------------------------------------------
+  // --- etak <type> subcommand groups -------------------------------------
   //
-  // M1-S5 ships all six as stubs. M1-S6 replaces `idea` with real
-  // handlers by swapping its registration call here; M2 replaces the
-  // other five. Leaving a TODO at each integration point.
+  // M1-S6 ships real handlers for `idea`. The other five types remain
+  // stubs that exit 4 with "not implemented in M1". M2 will replace the
+  // remaining five by calling their registration functions here alongside
+  // `registerIdeaCommands`.
+  const typedGlobals: ChassisGlobals = {
+    ...globals,
+    exit: setExitCode,
+  };
+  registerIdeaCommands(program, { globals: typedGlobals });
   for (const type of ARTIFACT_TYPES) {
-    // TODO(M1-S6): replace `idea` registration with
-    //   registerIdeaCommands(program, () => createCommandContext(...))
-    // which wires real handlers while keeping the chassis unchanged.
-    registerTypeCommands(program, type, {
-      ...globals,
-      // Stub leaves synchronously set the exit code via our closure.
-      exit: setExitCode,
-    });
+    if (type === 'idea') continue;
+    registerNotImplementedType(program, type, typedGlobals);
   }
 
   return program;

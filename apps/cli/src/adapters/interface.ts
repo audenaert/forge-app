@@ -38,9 +38,11 @@ export interface StorageAdapter {
   list(type: ArtifactType, filter?: ListFilter): Promise<ArtifactRef[]>;
 
   /**
-   * Apply a patch to an existing artifact. Frontmatter field merges and a
-   * single body update (section-replace or body-replace) are supported.
-   * Throws `NotFoundError` when the ref does not exist.
+   * Apply a patch to an existing artifact. Frontmatter field merges and
+   * one or more body updates (applied in order) are supported in a single
+   * atomic write. Body-replace inside an array resets the running body,
+   * so later section-replace ops operate on the replacement. Throws
+   * `NotFoundError` when the ref does not exist.
    */
   update(ref: ArtifactRef, changes: UpdateChanges): Promise<WriteResult>;
 

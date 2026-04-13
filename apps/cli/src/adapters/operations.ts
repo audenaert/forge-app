@@ -73,13 +73,24 @@ export interface BodyReplaceUpdate {
 export type BodyUpdate = SectionReplaceUpdate | BodyReplaceUpdate;
 
 /**
- * Patch applied by `update`. Frontmatter fields and at most one body update
- * form per call (enforced at the command layer, but the adapter is defensive
- * about it).
+ * Patch applied by `update`. Frontmatter field merges and one or more body
+ * updates are supported in a single atomic write.
+ *
+ * When `body` is an array, ops apply **in order** to a running body,
+ * enabling multiple section replacements (and any mixture with body-replace)
+ * in a single serialization pass. A `body-replace` inside an array resets
+ * the running body; subsequent `section-replace` ops apply to the new body.
+ * This eliminates the partial-update state corruption that multiple
+ * sequential `adapter.update()` calls would expose on a crash or
+ * disk-full between writes.
  */
 export interface UpdateChanges {
   frontmatter?: Partial<ArtifactFrontmatter>;
-  body?: BodyUpdate;
+  /**
+   * A single body op, or an ordered array of ops. Ops apply left-to-right
+   * against a running body; `body-replace` resets the running body.
+   */
+  body?: BodyUpdate | BodyUpdate[];
 }
 
 /** Filter for `list`. Only fields the spec promises in §1 are supported. */
