@@ -70,9 +70,10 @@ describe('output mode handling', () => {
   it('errors in JSON mode route to stderr, not stdout', () => {
     const { dir, cleanup } = makeTempProject();
     try {
-      // Uninitialized + stub command → E_NOT_INITIALIZED on stderr.
-      const result = runCli(['--output', 'json', 'idea', 'create'], {
+      // Uninitialized project + a real command → E_NOT_INITIALIZED on stderr.
+      const result = runCli(['--output', 'json', 'idea', 'get', 'foo'], {
         cwd: dir,
+        env: { ETAK_ROOT: '' },
       });
       expect(result.status).toBe(3);
       expect(result.stdout).toBe('');
@@ -86,8 +87,9 @@ describe('output mode handling', () => {
   it('errors in human mode also route to stderr', () => {
     const { dir, cleanup } = makeTempProject();
     try {
-      const result = runCli(['--output', 'human', 'idea', 'create'], {
+      const result = runCli(['--output', 'human', 'idea', 'get', 'foo'], {
         cwd: dir,
+        env: { ETAK_ROOT: '' },
       });
       expect(result.status).toBe(3);
       expect(result.stdout).toBe('');

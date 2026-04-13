@@ -39,7 +39,11 @@ describe('exit code matrix (chassis-only, M1-S5)', () => {
   it('exit 3: non-init command in an uninitialized project', () => {
     const { dir, cleanup } = makeTempProject();
     try {
-      const result = runCli(['idea', 'create'], {
+      // `opportunity get foo` is still a stub in M1 but proves the
+      // context walk-up runs before the stub handler. For an
+      // uninitialized project the walk-up throws E_NOT_INITIALIZED (exit
+      // 3) before the stub's UsageError ever fires.
+      const result = runCli(['opportunity', 'get', 'foo'], {
         cwd: dir,
         // Important: also pin the walk-up start so test harness's own
         // parent directory can never supply a stray .etak/.
@@ -62,10 +66,12 @@ describe('exit code matrix (chassis-only, M1-S5)', () => {
   });
 
   it('exit 4: stub handler in an initialized project', () => {
+    // The five non-idea types remain stubs in M1-S6. Use `opportunity`
+    // to exercise the "context wired, handler throws UsageError" path.
     const { dir, cleanup } = makeTempProject();
     try {
       runCli(['init'], { cwd: dir });
-      const result = runCli(['idea', 'create'], { cwd: dir });
+      const result = runCli(['opportunity', 'create'], { cwd: dir });
       expect(result.status).toBe(4);
       const env = parseEnvelope(result.stderr);
       expect(env.errors[0]?.code).toBe('E_USAGE');
