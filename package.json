@@ -6,10 +6,13 @@
     "apps/*",
     "packages/*"
   ],
+  "packageManager": "npm@10.9.7",
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "test": "vitest run",
+    "test": "turbo test",
+    "test:integration": "vitest run",
+    "typecheck": "turbo typecheck",
     "lint": "turbo lint"
   },
   "engines": {
@@ -19,6 +22,7 @@
     "@testcontainers/neo4j": "^11.14.0",
     "testcontainers": "^11.14.0",
     "tsx": "^4.21.0",
+    "turbo": "^2.3.3",
     "typescript": "^6.0.2",
     "vitest": "^4.1.4"
   }
