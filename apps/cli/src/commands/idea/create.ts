@@ -211,7 +211,9 @@ export async function runIdeaCreate(
 
   // Post-write dangling-link check: each --addresses and --delivered-by
   // slug is resolved against the adapter. A missing target is a warning,
-  // not an error, per §2.
+  // not an error, per §2. `delivered_by` is polymorphic (idea → story /
+  // task / spec / ...); v1 does not disambiguate by type, so we probe
+  // under `type: 'idea'` — matching the shape `link.ts:152-154` uses.
   for (const oppSlug of frontmatter['addresses'] as string[]) {
     const targetRef: ArtifactRef = { type: 'opportunity', slug: oppSlug };
     if (!(await refExists(ctx, targetRef))) {
@@ -221,6 +223,18 @@ export async function runIdeaCreate(
         message: `link target opportunity/${oppSlug} does not exist yet`,
         location: { artifactRef: ref, field: 'addresses' },
         details: { to: targetRef, field: 'addresses' },
+      });
+    }
+  }
+  for (const targetSlug of frontmatter['delivered_by'] as string[]) {
+    const targetRef: ArtifactRef = { type: 'idea', slug: targetSlug };
+    if (!(await refExists(ctx, targetRef))) {
+      warnings.push({
+        kind: 'dangling_ref',
+        severity: 'warning',
+        message: `link target delivered_by/${targetSlug} does not exist yet`,
+        location: { artifactRef: ref, field: 'delivered_by' },
+        details: { to: targetRef, field: 'delivered_by' },
       });
     }
   }

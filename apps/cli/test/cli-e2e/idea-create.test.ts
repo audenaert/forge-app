@@ -3,7 +3,7 @@
 // explicit slug override, invalid status, missing --name, dangling link
 // warning, --from-file body source, slug collision.
 
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -98,6 +98,55 @@ describe('etak idea create (built binary e2e)', () => {
     expect(dangling.length).toBe(1);
     // And the file still lands:
     expect(existsSync(resolve(dir, '.etak/artifacts/ideas/danglers.md'))).toBe(true);
+  });
+
+  it('surfaces a dangling_ref warning when --delivered-by points at a non-existent target', () => {
+    const result = runCli(
+      ['idea', 'create', '--name', 'Delivery Danglers', '--delivered-by', 'nonexistent-slug'],
+      { cwd: dir },
+    );
+    expect(result.status).toBe(0);
+    const env = parseEnvelope(result.stdout);
+    const dangling = (
+      env.warnings as Array<{ kind: string; details?: { field?: string; to?: { slug: string } } }>
+    ).filter((w) => w.kind === 'dangling_ref');
+    expect(dangling.length).toBe(1);
+    expect(dangling[0]?.details?.field).toBe('delivered_by');
+    expect(dangling[0]?.details?.to?.slug).toBe('nonexistent-slug');
+    expect(existsSync(resolve(dir, '.etak/artifacts/ideas/delivery-danglers.md'))).toBe(true);
+  });
+
+  it('reports exactly one dangling_ref when --addresses is valid and --delivered-by is not', () => {
+    // Pre-create an opportunity so --addresses resolves. --delivered-by
+    // remains dangling; only one warning should surface.
+    const oppDir = resolve(dir, '.etak/artifacts/opportunities');
+    mkdirSync(oppDir, { recursive: true });
+    writeFileSync(
+      resolve(oppDir, 'real-opp.md'),
+      '---\nname: Real\ntype: opportunity\nstatus: active\n---\n\n## Description\n\nx\n\n## Evidence\n\ny\n',
+      'utf8',
+    );
+
+    const result = runCli(
+      [
+        'idea',
+        'create',
+        '--name',
+        'Mixed Danglers',
+        '--addresses',
+        'real-opp',
+        '--delivered-by',
+        'nonexistent',
+      ],
+      { cwd: dir },
+    );
+    expect(result.status).toBe(0);
+    const env = parseEnvelope(result.stdout);
+    const dangling = (
+      env.warnings as Array<{ kind: string; details?: { field?: string } }>
+    ).filter((w) => w.kind === 'dangling_ref');
+    expect(dangling.length).toBe(1);
+    expect(dangling[0]?.details?.field).toBe('delivered_by');
   });
 
   it('--from-file replaces the body with the file contents', () => {
