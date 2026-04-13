@@ -204,7 +204,7 @@ canonicalizes on round-trip.
   No disruption to how humans already author.
 - Markdown remains human-readable and Claude-editable — critical for the "just open it
   in the editor" escape hatch.
-- Skills get a precise update surface: `etak idea update foo --section open_questions "..."`.
+- Skills get a precise update surface: `etak idea update foo --section open_questions=...`.
 - Per-section validation is feasible (required sections present, body not empty on
   required sections, etc.).
 - Graph backend can map sections to typed fields where appropriate.
@@ -299,12 +299,18 @@ Section 8 lists the actual templates for all six discovery types.
 
 The `update` command accepts, in priority order:
 
-- `--section <name> <content>` — replace the body of a single section in place. `<name>`
-  is matched against template section slugs first, then canonical heading text
-  (case-insensitive), then verbatim heading text from the document. Multiple
-  `--section` flags can be passed in one call.
-- `--section-file <name> <path>` — same, but body read from a file (for content longer
-  than a shell line).
+- `--section <slug>=<content>` — replace the body of a single section in place.
+  Repeatable. The argument is split on the **first** `=`; everything before is the
+  slug, everything after is the raw markdown content for that section's body. The
+  slug is matched against template section slugs first, then against heading-derived
+  slugs for extra (non-template) sections. Multiple `--section` flags can be passed
+  in one call, each targeting a different slug.
+- `--section-file <slug>=<path>` — same, but body read from a file (for content
+  longer than a shell line). Repeatable; same `slug=` keying as `--section`.
+- `--section-stdin <slug>` — read a single section's body from stdin, keyed by slug.
+  Not repeatable in a meaningful sense: if multiple `--section-stdin` flags are
+  passed, the last one wins (Commander overwrites a non-collector option on each
+  occurrence) and only one section can be sourced from stdin per invocation.
 - `--body <content>` — replace the entire body. The content is parsed, validated, and
   may itself produce drift warnings.
 - `--body-file <path>` — same, reading from a file. Use for large content.
@@ -323,6 +329,17 @@ form, `--body*` is another). Combining forms is a usage error (exit 4).
 Large content handling: `--section-file`, `--body-file`, and `--body-stdin` exist
 precisely because shell argv is not a viable channel for multi-paragraph prose. The
 skill-facing convention is: small edits inline, large edits via file or stdin.
+
+**Design note: why `slug=content` instead of `<slug> <content>`.** The original
+draft of this spec proposed `--section <name> <content>` as two positional values
+after the flag. Commander doesn't cleanly support paired values on a repeatable
+option — a custom collector would fight its help system and error rendering. The
+`slug=content` form was adopted during the M1-S6 implementation (PR #11) because
+it composes cleanly with `--section-file <slug>=<path>` and `--section-stdin
+<slug>`: all three flags are keyed on the same slug identifier, giving consistent
+internal ergonomics across every body-section operation. This is an intentional
+deviation from the `--body-file <path>` / `--body-stdin` shape, which does not need
+a key because it addresses the whole body.
 
 ### 3.5 Drift handling rule
 
