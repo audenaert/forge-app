@@ -4,7 +4,7 @@ type: idea
 status: draft
 addresses:
   - solo-devs-blocked-by-team-tool-overhead
-delivered_by: null
+delivered_by: []
 ---
 
 ## Description

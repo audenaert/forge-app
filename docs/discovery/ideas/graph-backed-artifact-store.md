@@ -4,7 +4,8 @@ type: idea
 status: building
 addresses:
   - no-computational-model-for-opportunity-exploration
-delivered_by: graph-backed-artifact-store
+delivered_by:
+  - graph-backed-artifact-store
 ---
 
 ## Description
