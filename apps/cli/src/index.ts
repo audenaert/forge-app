@@ -13,18 +13,16 @@
 export * from './schemas/index.js';
 
 // Adapter-operation types — runtime plumbing of the storage adapter
-// surface. These are distinct from the schemas artifact model; see the
-// note at the top of `./adapters/operations.ts` for the shape-mismatch
-// between the parser's raw-content `ParsedBodySection` and the schemas
-// `BodySection` placeholder.
+// surface. These are distinct from the schemas artifact model: the schemas
+// package owns the persistent artifact shape (including `BodySection` and
+// `BodyDocument`, re-exported above), while this file's types describe how
+// the adapter is called and what it returns.
 export type {
   ArtifactFrontmatter,
   BodyReplaceUpdate,
   BodyUpdate,
   Document,
   ListFilter,
-  ParsedBodyDocument,
-  ParsedBodySection,
   SectionReplaceUpdate,
   UpdateChanges,
   WriteResult,
