@@ -34,7 +34,7 @@ import type {
   BodyTemplate,
   DriftWarning,
 } from '../types.js';
-import { AdapterError } from '../errors.js';
+import { ValidationError } from '../errors.js';
 import { getBodyTemplate, isOpaqueBody } from '../templates.js';
 
 export interface ParseResult {
@@ -51,8 +51,9 @@ export function parseMarkdown(source: string, ref: ArtifactRef): ParseResult {
   try {
     tree = processor.parse(source) as Root;
   } catch (err) {
+    // Malformed markdown is user-correctable (edit the file) — exit 1.
     const message = err instanceof Error ? err.message : String(err);
-    throw new AdapterError(
+    throw new ValidationError(
       `failed to parse markdown for ${ref.type}/${ref.slug}: ${message}`,
       { location: { artifactRef: ref } },
     );
@@ -66,9 +67,13 @@ export function parseMarkdown(source: string, ref: ArtifactRef): ParseResult {
 }
 
 function extractFrontmatter(tree: Root, ref: ArtifactRef): ArtifactFrontmatter {
+  // User-correctable frontmatter problems (missing/invalid YAML block,
+  // missing required fields, type mismatch) raise ValidationError (exit 1)
+  // per design.md §4.3. AdapterError (exit 3) is reserved for system-level
+  // IO failures — anything here is fixable by editing the file.
   const first = tree.children[0];
   if (!first || first.type !== 'yaml') {
-    throw new AdapterError(
+    throw new ValidationError(
       `missing YAML frontmatter in ${ref.type}/${ref.slug}`,
       { location: { artifactRef: ref } },
     );
@@ -79,32 +84,32 @@ function extractFrontmatter(tree: Root, ref: ArtifactRef): ArtifactFrontmatter {
     parsed = yamlParse(yamlNode.value);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new AdapterError(
+    throw new ValidationError(
       `invalid YAML frontmatter in ${ref.type}/${ref.slug}: ${message}`,
       { location: { artifactRef: ref } },
     );
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new AdapterError(
+    throw new ValidationError(
       `frontmatter for ${ref.type}/${ref.slug} must be a YAML mapping`,
       { location: { artifactRef: ref } },
     );
   }
   const obj = parsed as Record<string, unknown>;
   if (typeof obj['name'] !== 'string') {
-    throw new AdapterError(
+    throw new ValidationError(
       `frontmatter for ${ref.type}/${ref.slug} is missing required \`name\``,
       { location: { artifactRef: ref } },
     );
   }
   if (typeof obj['type'] !== 'string') {
-    throw new AdapterError(
+    throw new ValidationError(
       `frontmatter for ${ref.type}/${ref.slug} is missing required \`type\``,
       { location: { artifactRef: ref } },
     );
   }
   if (obj['type'] !== ref.type) {
-    throw new AdapterError(
+    throw new ValidationError(
       `frontmatter \`type: ${String(obj['type'])}\` does not match ref type \`${ref.type}\``,
       { location: { artifactRef: ref } },
     );
