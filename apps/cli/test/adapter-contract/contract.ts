@@ -285,11 +285,11 @@ function runRealContract(factory: AdapterFactory): void {
 
     // Per-section strict equality. Parser captures raw content from the
     // first line after the `## heading` line up to (but not including) the
-    // next H2, then strips trailing whitespace. The blank line the
-    // serializer writes between heading and content appears at the start
-    // of the captured region, so we normalize a single leading newline
-    // before comparing. Nothing else is touched.
-    const strip = (s: string): string => s.replace(/^\n/, '').replace(/\s+$/, '');
+    // next H2, then strips the leading separator newline and trailing
+    // whitespace (see `parser.ts`). We only normalize trailing whitespace
+    // here so this helper cannot mask a leading-newline drift if the
+    // parser regresses.
+    const strip = (s: string): string => s.replace(/\s+$/, '');
     const expected: Record<string, string> = {
       description: descriptionBody.replace(/\s+$/, ''),
       why_this_could_work: 'With `etak init` we bootstrap the project.',
