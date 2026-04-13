@@ -202,6 +202,40 @@ only description
     expect(env.errors[0]?.message).toMatch(/mutually exclusive/);
   });
 
+  it('applies --status plus multiple --section flags in a single atomic update', () => {
+    const file = resolve(dir, '.etak/artifacts/ideas/target-idea.md');
+    const result = runCli(
+      [
+        'idea',
+        'update',
+        'target-idea',
+        '--status',
+        'exploring',
+        '--section',
+        'description=new description body',
+        '--section',
+        'why_this_could_work=new rationale body',
+      ],
+      { cwd: dir },
+    );
+    expect(result.status).toBe(0);
+    const env = parseEnvelope(result.stdout);
+    const data = env.data as { applied: string[] };
+    // A single envelope carries all three applied labels.
+    expect(data.applied).toContain('status');
+    expect(data.applied).toContain('section:description');
+    expect(data.applied).toContain('section:why_this_could_work');
+
+    // Final file state reflects all three changes.
+    const after = readFileSync(file, 'utf8');
+    expect(after).toContain('status: exploring');
+    expect(after).toContain('new description body');
+    expect(after).toContain('new rationale body');
+    // Frontmatter still intact.
+    expect(after).toContain('name: Target Idea');
+    expect(after).toContain('type: idea');
+  });
+
   it('adds and removes addresses via --add-addresses / --remove-addresses', () => {
     runCli(
       [

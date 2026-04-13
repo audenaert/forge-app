@@ -226,19 +226,13 @@ export async function runIdeaUpdate(
   }
 
   // --- body update -------------------------------------------------------
-  // We accept up to one `BodyUpdate` in the UpdateChanges patch. For
-  // multiple --section flags, we apply them as a sequence of update calls
-  // so each section replace rolls through the adapter's parser. Each call
-  // accumulates drift warnings.
-  const warnings: DriftWarning[] = [];
+  // Build a single ordered list of body ops. body-replace comes first if
+  // present (so subsequent section-replace ops apply to the replacement
+  // body — matching the spec §3.4 "whole-body then sections" ordering).
+  // One adapter.update() call with { frontmatter, body: ops[] } writes
+  // everything atomically.
+  const bodyOps: BodyUpdate[] = [];
 
-  if (Object.keys(fmPatch).length > 0) {
-    const changes: UpdateChanges = { frontmatter: fmPatch };
-    const result = await ctx.adapter.update(ref, changes);
-    warnings.push(...result.warnings);
-  }
-
-  // Whole-body: resolve the source, then one body-replace call.
   if (hasWholeBody) {
     let content: string;
     if (opts.body !== undefined) {
@@ -256,9 +250,7 @@ export async function runIdeaUpdate(
     } else {
       content = await readStdin();
     }
-    const bodyUpdate: BodyUpdate = { kind: 'body-replace', content };
-    const result = await ctx.adapter.update(ref, { body: bodyUpdate });
-    warnings.push(...result.warnings);
+    bodyOps.push({ kind: 'body-replace', content });
     applied.push('body');
   }
 
@@ -266,10 +258,10 @@ export async function runIdeaUpdate(
   // --section-file flag: "slug=path". --section-stdin is a single slug
   // whose content is read from stdin once.
   if (hasSection) {
-    const sectionUpdates: Array<{ slug: string; content: string }> = [];
     for (const entry of opts.section ?? []) {
       const { slug: sectionSlug, value } = splitKv(entry, '--section');
-      sectionUpdates.push({ slug: sectionSlug, content: value });
+      bodyOps.push({ kind: 'section-replace', sectionSlug, content: value });
+      applied.push(`section:${sectionSlug}`);
     }
     for (const entry of opts.sectionFile ?? []) {
       const { slug: sectionSlug, value: path } = splitKv(entry, '--section-file');
@@ -283,18 +275,17 @@ export async function runIdeaUpdate(
           { details: { path } },
         );
       }
-      sectionUpdates.push({ slug: sectionSlug, content });
+      bodyOps.push({ kind: 'section-replace', sectionSlug, content });
+      applied.push(`section:${sectionSlug}`);
     }
     if (opts.sectionStdin !== undefined) {
       const content = await readStdin();
-      sectionUpdates.push({ slug: opts.sectionStdin, content });
-    }
-    for (const u of sectionUpdates) {
-      const result = await ctx.adapter.update(ref, {
-        body: { kind: 'section-replace', sectionSlug: u.slug, content: u.content },
+      bodyOps.push({
+        kind: 'section-replace',
+        sectionSlug: opts.sectionStdin,
+        content,
       });
-      warnings.push(...result.warnings);
-      applied.push(`section:${u.slug}`);
+      applied.push(`section:${opts.sectionStdin}`);
     }
   }
 
@@ -303,6 +294,18 @@ export async function runIdeaUpdate(
       'no updates specified — pass at least one --name / --status / --add-* / --remove-* / --section* / --body* flag',
     );
   }
+
+  // Single atomic adapter call. If neither frontmatter nor body changed
+  // we would have errored above; here at least one slot is non-empty.
+  const changes: UpdateChanges = {};
+  if (Object.keys(fmPatch).length > 0) {
+    changes.frontmatter = fmPatch;
+  }
+  if (bodyOps.length > 0) {
+    changes.body = bodyOps;
+  }
+  const result = await ctx.adapter.update(ref, changes);
+  const warnings: DriftWarning[] = [...result.warnings];
 
   return envelopeSuccess(
     'idea update',
