@@ -37,6 +37,25 @@ import { AdapterError, NotFoundError, ValidationError } from '../errors.js';
 import { directoryForType, fileForRef } from './paths.js';
 import { parseMarkdown } from './parser.js';
 import { serializeDocument } from './serializer.js';
+import { SlugSchema } from '../../schemas/common.js';
+
+/**
+ * Validate every `ArtifactRef` crossing a public adapter boundary against
+ * the schema package's `SlugSchema`. This is the first layer of defense
+ * against path traversal: any slug containing `..`, `/`, or otherwise
+ * non-kebab-case characters is rejected before it reaches the path layer.
+ * The second layer — `assertUnderRoot` in `paths.ts` — catches anything
+ * that slips past.
+ */
+function validateRef(ref: ArtifactRef): void {
+  const result = SlugSchema.safeParse(ref.slug);
+  if (!result.success) {
+    throw new ValidationError(
+      `invalid slug \`${String(ref.slug)}\`: ${result.error.issues[0]?.message ?? 'slug failed validation'}`,
+      { location: { artifactRef: ref }, details: { slug: ref.slug, issues: result.error.issues } },
+    );
+  }
+}
 
 export interface FsAdapterOptions {
   /** Absolute path to the artifact root (e.g. `<project>/.etak/artifacts`). */
@@ -51,6 +70,7 @@ export class FsAdapter implements StorageAdapter {
   }
 
   public async read(ref: ArtifactRef): Promise<Document> {
+    validateRef(ref);
     const file = fileForRef(this.root, ref);
     let source: string;
     try {
@@ -74,6 +94,7 @@ export class FsAdapter implements StorageAdapter {
   }
 
   public async write(document: Document): Promise<WriteResult> {
+    validateRef(document.ref);
     const file = fileForRef(this.root, document.ref);
     await this.ensureDirectory(document.ref.type);
 
@@ -139,6 +160,7 @@ export class FsAdapter implements StorageAdapter {
   }
 
   public async update(ref: ArtifactRef, changes: UpdateChanges): Promise<WriteResult> {
+    validateRef(ref);
     const existing = await this.read(ref);
     const mergedFrontmatter: ArtifactFrontmatter = {
       ...existing.frontmatter,
@@ -163,6 +185,8 @@ export class FsAdapter implements StorageAdapter {
   }
 
   public async link(from: ArtifactRef, field: string, to: ArtifactRef): Promise<WriteResult> {
+    validateRef(from);
+    validateRef(to);
     const existing = await this.read(from);
     const warnings: DriftWarning[] = existing.warnings.slice();
 
@@ -186,6 +210,8 @@ export class FsAdapter implements StorageAdapter {
   }
 
   public async unlink(from: ArtifactRef, field: string, to: ArtifactRef): Promise<WriteResult> {
+    validateRef(from);
+    validateRef(to);
     const existing = await this.read(from);
     const warnings: DriftWarning[] = existing.warnings.slice();
 
