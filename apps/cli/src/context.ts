@@ -39,6 +39,17 @@ export interface CreateCommandContextOptions {
   streams: StreamPair;
 }
 
+/**
+ * Factory signature every command-group registration accepts so tests can
+ * inject a fake `CommandContext` without spinning up a real adapter.
+ * Production code passes `createCommandContext` through, which walks up
+ * for `.etak/` and instantiates the fs adapter. Shared across all leaf
+ * handlers.
+ */
+export type CommandContextFactory = (
+  opts: CreateCommandContextOptions,
+) => Promise<CommandContext>;
+
 export async function createCommandContext(
   opts: CreateCommandContextOptions,
 ): Promise<CommandContext> {

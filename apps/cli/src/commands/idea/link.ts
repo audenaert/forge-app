@@ -14,14 +14,14 @@
 import type { Command } from 'commander';
 
 import type { ChassisGlobals } from '../../cli-runtime.js';
-import type { CommandContext } from '../../context.js';
+import type { CommandContext, CommandContextFactory } from '../../context.js';
 import type { ArtifactRef, DriftWarning } from '../../schemas/index.js';
 import { runCommand } from '../../errors/boundary.js';
 import { envelopeSuccess } from '../../output/envelope.js';
 import type { Envelope } from '../../output/envelope.js';
 import { ValidationError } from '../../adapters/errors.js';
 
-import type { CommandContextFactory } from './shared.js';
+import { collectStrings } from '../shared.js';
 
 export interface IdeaLinkOptions {
   addresses?: string[];
@@ -34,10 +34,6 @@ export interface IdeaLinkResult {
   ref: ArtifactRef;
   added: Array<{ field: string; to: string }>;
   removed: Array<{ field: string; to: string }>;
-}
-
-function collectStrings(value: string, previous: string[] = []): string[] {
-  return [...previous, value];
 }
 
 export function registerLinkCommand(

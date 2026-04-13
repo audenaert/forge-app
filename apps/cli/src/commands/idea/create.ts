@@ -18,7 +18,7 @@
 import type { Command } from 'commander';
 
 import type { ChassisGlobals } from '../../cli-runtime.js';
-import type { CommandContext } from '../../context.js';
+import type { CommandContext, CommandContextFactory } from '../../context.js';
 import type { ArtifactRef, DriftWarning } from '../../schemas/index.js';
 import type { Document, ArtifactFrontmatter } from '../../adapters/operations.js';
 import { runCommand } from '../../errors/boundary.js';
@@ -27,8 +27,13 @@ import type { Envelope } from '../../output/envelope.js';
 import { IdeaFrontmatterSchema, IdeaBodyTemplate } from '../../schemas/index.js';
 import { ValidationError } from '../../adapters/errors.js';
 
-import type { CommandContextFactory } from './shared.js';
-import { deriveSlug, readFileUtf8, readStdin } from './shared.js';
+import {
+  collectStrings,
+  deriveSlug,
+  readFileUtf8,
+  readStdin,
+  scaffoldCanonicalBody,
+} from '../shared.js';
 
 export interface IdeaCreateOptions {
   name?: string;
@@ -51,14 +56,6 @@ export interface IdeaCreateResult {
   path: string;
 }
 
-/**
- * Commander-level collector for repeatable string options. Returns the
- * accumulated array so each additional `--addresses foo --addresses bar`
- * flag appends to the same list.
- */
-function collectStrings(value: string, previous: string[] = []): string[] {
-  return [...previous, value];
-}
 
 export function registerCreateCommand(
   group: Command,
@@ -163,30 +160,12 @@ export async function runIdeaCreate(
   const ref: ArtifactRef = { type: 'idea', slug: rawSlug };
 
   // Build the canonical body document. If body content came from
-  // --from-file or --body-stdin we apply it as a body-replace via
-  // serializing an intermediate Document; simplest path is to write the
-  // empty template first and then update. Instead: synthesize the body
-  // directly by placing the content into a single "description" section
-  // if it lacks H2 headings, or pass through as a body-replace after
-  // write. The clean approach is to start with the canonical template and
-  // then issue a body-replace update for file/stdin sources.
-
-  // Required sections scaffold with a placeholder TODO marker; optional
-  // sections stay empty. Without a placeholder, the parser treats
-  // empty-but-present as canonical and `create → get` reports zero
-  // drift on a structurally-incomplete artifact, hiding the fact that
-  // the author never filled it in.
-  const REQUIRED_PLACEHOLDER = '_TODO: fill in_';
-  const emptyBody = {
-    sections: IdeaBodyTemplate.sections.map((s) => ({
-      heading: s.name,
-      slug: s.slug,
-      status: 'canonical' as const,
-      canonicalOrder: s.order,
-      content: s.required ? REQUIRED_PLACEHOLDER : '',
-    })),
-    warnings: [] as DriftWarning[],
-  };
+  // --from-file or --body-stdin we apply it as a body-replace via a
+  // subsequent update; the initial write always goes through the
+  // canonical scaffold. `scaffoldCanonicalBody` fills required sections
+  // with a TODO placeholder so `create → get` surfaces drift on a
+  // structurally-incomplete artifact instead of hiding it.
+  const emptyBody = scaffoldCanonicalBody(IdeaBodyTemplate);
 
   const ctx: CommandContext = await factory({
     cwd: globals.cwd,

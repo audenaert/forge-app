@@ -29,7 +29,7 @@
 import type { Command } from 'commander';
 
 import type { ChassisGlobals } from '../../cli-runtime.js';
-import type { CommandContext } from '../../context.js';
+import type { CommandContext, CommandContextFactory } from '../../context.js';
 import type { ArtifactRef, DriftWarning } from '../../schemas/index.js';
 import type {
   ArtifactFrontmatter,
@@ -42,8 +42,7 @@ import type { Envelope } from '../../output/envelope.js';
 import { ValidationError } from '../../adapters/errors.js';
 import { ObjectiveStatusSchema } from '../../schemas/index.js';
 
-import type { CommandContextFactory } from './shared.js';
-import { readFileUtf8, readStdin } from './shared.js';
+import { collectStrings, readFileUtf8, readStdin, splitKv } from '../shared.js';
 
 export interface ObjectiveUpdateOptions {
   name?: string;
@@ -59,10 +58,6 @@ export interface ObjectiveUpdateOptions {
 export interface ObjectiveUpdateResult {
   ref: ArtifactRef;
   applied: string[];
-}
-
-function collectStrings(value: string, previous: string[] = []): string[] {
-  return [...previous, value];
 }
 
 export function registerUpdateCommand(
@@ -267,26 +262,3 @@ export async function runObjectiveUpdate(
   );
 }
 
-/**
- * Split a `<slug>=<content>` flag value on the first `=`. Any additional
- * `=` characters are preserved in the content portion (so
- * `description=a=b=c` yields `{slug: 'description', value: 'a=b=c'}`).
- * An empty slug or a missing `=` is a ValidationError. Exported for
- * unit tests.
- */
-export function splitKv(entry: string, flag: string): { slug: string; value: string } {
-  const eq = entry.indexOf('=');
-  if (eq === -1) {
-    throw new ValidationError(
-      `${flag} expects <slug>=<value>, got "${entry}"`,
-    );
-  }
-  const slug = entry.slice(0, eq).trim();
-  const value = entry.slice(eq + 1);
-  if (slug.length === 0) {
-    throw new ValidationError(
-      `${flag} requires a non-empty section slug before "="`,
-    );
-  }
-  return { slug, value };
-}
