@@ -15,7 +15,7 @@
 // without running `validateRef`) still cannot escape the root.
 
 import { resolve, sep } from 'node:path';
-import type { ArtifactRef, ArtifactType } from '../types.js';
+import type { ArtifactRef, ArtifactType } from '../../schemas/index.js';
 import { AdapterError } from '../errors.js';
 
 const PLURAL: Record<ArtifactType, string> = {

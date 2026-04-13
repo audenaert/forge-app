@@ -21,18 +21,20 @@ import { randomBytes } from 'node:crypto';
 
 import type { StorageAdapter } from '../interface.js';
 import type {
-  ArtifactFrontmatter,
   ArtifactRef,
   ArtifactType,
-  BodyDocument,
-  BodySection,
+  DriftWarning,
+} from '../../schemas/index.js';
+import type {
+  ArtifactFrontmatter,
   BodyUpdate,
   Document,
-  DriftWarning,
   ListFilter,
+  ParsedBodyDocument,
+  ParsedBodySection,
   UpdateChanges,
   WriteResult,
-} from '../types.js';
+} from '../operations.js';
 import { AdapterError, NotFoundError, ValidationError } from '../errors.js';
 import { directoryForType, fileForRef } from './paths.js';
 import { parseMarkdown } from './parser.js';
@@ -171,7 +173,7 @@ export class FsAdapter implements StorageAdapter {
       mergedFrontmatter.type = ref.type;
     }
 
-    let nextBody: BodyDocument = existing.body;
+    let nextBody: ParsedBodyDocument = existing.body;
     if (changes.body) {
       nextBody = applyBodyUpdate(existing.body, changes.body, ref);
     }
@@ -196,7 +198,7 @@ export class FsAdapter implements StorageAdapter {
         kind: 'dangling_ref',
         severity: 'warning',
         message: `link target ${to.type}/${to.slug} does not exist yet`,
-        location: { artifactRef: from, field } as never,
+        location: { artifactRef: from, field },
         details: { to, field },
       });
     }
@@ -245,10 +247,10 @@ export class FsAdapter implements StorageAdapter {
 // --- helpers -----------------------------------------------------------------
 
 function applyBodyUpdate(
-  body: BodyDocument,
+  body: ParsedBodyDocument,
   update: BodyUpdate,
   ref: ArtifactRef,
-): BodyDocument {
+): ParsedBodyDocument {
   if (update.kind === 'body-replace') {
     // Re-parse the new raw body by constructing a pseudo-source with a
     // minimal frontmatter so the parser has something to match against
@@ -260,7 +262,7 @@ function applyBodyUpdate(
   // section-replace: find a section by slug and rewrite its content. If
   // the section doesn't exist, append a new one as an extra at the end.
   const target = update.sectionSlug;
-  const nextSections: BodySection[] = body.sections.map((s) => {
+  const nextSections: ParsedBodySection[] = body.sections.map((s) => {
     if (s.slug === target) {
       return { ...s, content: update.content };
     }

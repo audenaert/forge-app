@@ -27,19 +27,22 @@ import { parse as yamlParse } from 'yaml';
 import type { Root, RootContent, Heading, Yaml, Text, InlineCode } from 'mdast';
 
 import type {
-  ArtifactFrontmatter,
   ArtifactRef,
-  BodyDocument,
-  BodySection,
   BodyTemplate,
   DriftWarning,
-} from '../types.js';
+  SectionedBodyTemplate,
+} from '../../schemas/index.js';
+import { BODY_TEMPLATES } from '../../schemas/index.js';
+import type {
+  ArtifactFrontmatter,
+  ParsedBodyDocument,
+  ParsedBodySection,
+} from '../operations.js';
 import { ValidationError } from '../errors.js';
-import { getBodyTemplate, isOpaqueBody } from '../templates.js';
 
 export interface ParseResult {
   frontmatter: ArtifactFrontmatter;
-  body: BodyDocument;
+  body: ParsedBodyDocument;
 }
 
 const processor = unified()
@@ -60,7 +63,7 @@ export function parseMarkdown(source: string, ref: ArtifactRef): ParseResult {
   }
 
   const frontmatter = extractFrontmatter(tree, ref);
-  const template = getBodyTemplate(ref.type);
+  const template = BODY_TEMPLATES[ref.type];
   const body = buildBodyDocument(tree, source, ref, template);
 
   return { frontmatter, body };
@@ -145,12 +148,15 @@ function buildBodyDocument(
   source: string,
   ref: ArtifactRef,
   template: BodyTemplate,
-): BodyDocument {
+): ParsedBodyDocument {
   const warnings: DriftWarning[] = [];
   const bodyStart = findBodyStartFromTree(tree);
 
-  // Critique = body-as-opaque. One section, no drift detection.
-  if (isOpaqueBody(ref.type)) {
+  // Opaque bodies (critique) — one section, no drift detection. The
+  // section is flagged `status: 'extra'` rather than invented as a special
+  // 'opaque' kind so downstream consumers can treat it uniformly with
+  // other headless bodies. The serializer shortcuts on `template.kind`.
+  if (template.kind === 'opaque') {
     const content = source.slice(bodyStart).replace(/^\n+/, '').replace(/\s+$/, '');
     return {
       sections: content.length === 0
@@ -158,7 +164,7 @@ function buildBodyDocument(
         : [
             {
               heading: '',
-              slug: '__opaque__',
+              slug: 'body',
               status: 'extra',
               content,
             },
@@ -167,14 +173,15 @@ function buildBodyDocument(
     };
   }
 
+  const sectioned: SectionedBodyTemplate = template;
   const h2s = collectH2Positions(tree, source);
 
   // No H2 headings at all — the body is either empty or a single anonymous
-  // block. Emit a missing-required warning for every required template
-  // section and surface the content as an "extra" prelude so round-trip
-  // preserves it.
+  // preamble block. Emit a missing-required warning for every required
+  // template section and surface the content as a `preamble` section so
+  // round-trip preserves it.
   if (h2s.length === 0) {
-    for (const tmpl of template.sections) {
+    for (const tmpl of sectioned.sections) {
       if (tmpl.required) {
         warnings.push({
           kind: 'missing_required_section',
@@ -192,8 +199,8 @@ function buildBodyDocument(
         : [
             {
               heading: '',
-              slug: '__prelude__',
-              status: 'extra',
+              slug: 'preamble',
+              status: 'preamble',
               content,
             },
           ],
@@ -201,16 +208,16 @@ function buildBodyDocument(
     };
   }
 
-  // Any content between bodyStart and the first H2 is a prelude — preserve
+  // Any content between bodyStart and the first H2 is a preamble — preserve
   // it as an anonymous leading section so round-trip doesn't lose it.
-  const sections: BodySection[] = [];
+  const sections: ParsedBodySection[] = [];
   const preludeRaw = source.slice(bodyStart, h2s[0]!.startOffset);
   const preludeTrimmed = preludeRaw.replace(/^\n+/, '').replace(/\s+$/, '');
   if (preludeTrimmed.length > 0) {
     sections.push({
       heading: '',
-      slug: '__prelude__',
-      status: 'extra',
+      slug: 'preamble',
+      status: 'preamble',
       content: preludeTrimmed,
     });
   }
@@ -222,7 +229,7 @@ function buildBodyDocument(
     const raw = source.slice(h.contentStartOffset, endOffset);
     const content = raw.replace(/\s+$/, '');
 
-    const matched = matchTemplateSection(h.text, template);
+    const matched = matchTemplateSection(h.text, sectioned);
     if (matched) {
       sections.push({
         heading: h.text,
@@ -263,7 +270,7 @@ function buildBodyDocument(
     }
   }
 
-  for (const tmpl of template.sections) {
+  for (const tmpl of sectioned.sections) {
     if (tmpl.required && !canonicalSeen.has(tmpl.slug)) {
       warnings.push({
         kind: 'missing_required_section',
@@ -276,7 +283,7 @@ function buildBodyDocument(
   }
 
   for (const s of sections) {
-    if (s.status === 'extra' && s.slug !== '__prelude__') {
+    if (s.status === 'extra') {
       warnings.push({
         kind: 'extra_section',
         severity: 'info',
@@ -291,10 +298,10 @@ function buildBodyDocument(
   // heading, promote that section's status to `renamed` so serialization
   // preserves the author's wording and downstream consumers can still find
   // it by canonical slug.
-  for (const tmpl of template.sections) {
+  for (const tmpl of sectioned.sections) {
     if (canonicalSeen.has(tmpl.slug)) continue;
     const candidate = sections.find(
-      (s) => s.status === 'extra' && s.slug !== '__prelude__' && looksLikeRename(s.heading, tmpl.name),
+      (s) => s.status === 'extra' && looksLikeRename(s.heading, tmpl.name),
     );
     if (candidate) {
       candidate.status = 'renamed';
@@ -343,7 +350,7 @@ function stringifyHeadingChildren(heading: Heading): string {
   return out.trim();
 }
 
-function matchTemplateSection(heading: string, template: BodyTemplate) {
+function matchTemplateSection(heading: string, template: SectionedBodyTemplate) {
   const normalized = heading.trim().toLowerCase();
   for (const s of template.sections) {
     if (s.name.trim().toLowerCase() === normalized) {

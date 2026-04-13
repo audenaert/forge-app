@@ -11,7 +11,7 @@
 //     the authored heading (so the human's wording is preserved). Section
 //     `content` is already raw markdown and is emitted verbatim, separated
 //     by exactly one blank line.
-//   - The "prelude" pseudo-section (heading `""`, slug `__prelude__`) is
+//   - The `preamble` pseudo-section (heading `""`, status `preamble`) is
 //     emitted before the first real section, heading-less, so content
 //     authored before the first H2 is preserved on round-trip.
 //
@@ -23,8 +23,13 @@
 // is what authors will actually notice in diffs.
 
 import { stringify as yamlStringify } from 'yaml';
-import type { ArtifactFrontmatter, BodyDocument, BodySection, BodyTemplate } from '../types.js';
-import { getBodyTemplate } from '../templates.js';
+import type { BodyTemplate } from '../../schemas/index.js';
+import { BODY_TEMPLATES } from '../../schemas/index.js';
+import type {
+  ArtifactFrontmatter,
+  ParsedBodyDocument,
+  ParsedBodySection,
+} from '../operations.js';
 
 /** Canonical frontmatter key order. Keys not in this list follow in insertion order. */
 const FRONTMATTER_KEY_ORDER: readonly string[] = [
@@ -44,10 +49,10 @@ const FRONTMATTER_KEY_ORDER: readonly string[] = [
 
 export function serializeDocument(
   frontmatter: ArtifactFrontmatter,
-  body: BodyDocument,
+  body: ParsedBodyDocument,
 ): string {
   const fm = serializeFrontmatter(frontmatter);
-  const template = getBodyTemplate(frontmatter.type);
+  const template = BODY_TEMPLATES[frontmatter.type];
   const bodyText = serializeBody(body, template);
   return `${fm}\n${bodyText}`;
 }
@@ -71,9 +76,10 @@ export function serializeFrontmatter(frontmatter: ArtifactFrontmatter): string {
   return `---\n${yaml}\n---\n`;
 }
 
-function serializeBody(body: BodyDocument, template: BodyTemplate): string {
-  // Critique: exactly one opaque section whose content is the entire body.
-  if (template.type === 'critique') {
+function serializeBody(body: ParsedBodyDocument, template: BodyTemplate): string {
+  // Opaque body (critique): exactly one section whose content is the
+  // entire body, emitted headless.
+  if (template.kind === 'opaque') {
     if (body.sections.length === 0) return '\n';
     const content = body.sections[0]!.content.replace(/\s+$/, '');
     return `\n${content}\n`;
@@ -81,8 +87,8 @@ function serializeBody(body: BodyDocument, template: BodyTemplate): string {
 
   const parts: string[] = [];
   for (const s of body.sections) {
-    if (s.slug === '__prelude__') {
-      // Preserve prelude content with no heading.
+    if (s.status === 'preamble') {
+      // Preserve preamble content with no heading.
       parts.push(s.content.replace(/\s+$/, ''));
       continue;
     }
@@ -94,10 +100,11 @@ function serializeBody(body: BodyDocument, template: BodyTemplate): string {
   return `\n${parts.join('\n\n')}\n`;
 }
 
-function renderHeading(section: BodySection, template: BodyTemplate): string {
+function renderHeading(section: ParsedBodySection, template: BodyTemplate): string {
   // Canonical sections use the canonical template name. Renamed sections
-  // and extras preserve the authored heading.
-  if (section.status === 'canonical') {
+  // and extras preserve the authored heading. Opaque templates never call
+  // this path, so we can safely assume `kind === 'sectioned'` here.
+  if (template.kind === 'sectioned' && section.status === 'canonical') {
     const tmpl = template.sections.find((t) => t.slug === section.slug);
     return tmpl ? tmpl.name : section.heading;
   }

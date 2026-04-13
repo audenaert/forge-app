@@ -15,14 +15,13 @@
 // and the fs adapter's contract tests must pass against graphql too.
 
 import type { StorageAdapter } from '../interface.js';
+import type { ArtifactRef, ArtifactType } from '../../schemas/index.js';
 import type {
-  ArtifactRef,
-  ArtifactType,
   Document,
   ListFilter,
   UpdateChanges,
   WriteResult,
-} from '../types.js';
+} from '../operations.js';
 import { NotWiredError } from '../errors.js';
 
 const ADAPTER_NAME = 'graphql';

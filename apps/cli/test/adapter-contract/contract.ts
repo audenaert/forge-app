@@ -9,9 +9,9 @@ import { describe, it, expect, afterEach } from 'vitest';
 
 import type {
   ArtifactRef,
-  BodyDocument,
   Document,
   DriftWarning,
+  ParsedBodyDocument,
   StorageAdapter,
 } from '../../src/index.js';
 import { NotWiredError, ValidationError } from '../../src/index.js';
@@ -364,7 +364,7 @@ function runRealContract(factory: AdapterFactory): void {
         sections: [
           {
             heading: '',
-            slug: '__opaque__',
+            slug: 'body',
             status: 'extra',
             content:
               'This is a narrative critique with no fixed structure.\n\n' +
@@ -466,7 +466,7 @@ function section(heading: string, content: string) {
 
 function buildBody(
   entries: Array<{ heading: string; content: string }>,
-): BodyDocument {
+): ParsedBodyDocument {
   return {
     sections: entries.map((e) => ({
       heading: e.heading,

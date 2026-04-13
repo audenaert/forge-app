@@ -3,14 +3,13 @@
 // exchanges typed domain objects; markdown parsing and drift detection
 // live inside the fs adapter, not at this boundary. See design spec §1.
 
+import type { ArtifactRef, ArtifactType } from '../schemas/index.js';
 import type {
-  ArtifactRef,
-  ArtifactType,
   Document,
   ListFilter,
   UpdateChanges,
   WriteResult,
-} from './types.js';
+} from './operations.js';
 
 /**
  * The full adapter surface. v1 has no `delete` operation — per §1, removal

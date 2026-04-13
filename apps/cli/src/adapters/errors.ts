@@ -8,9 +8,9 @@
 
 import type {
   ArtifactRef,
-  DriftLocation,
   StructuredError,
-} from './types.js';
+  WarningLocation,
+} from '../schemas/index.js';
 
 /**
  * Common base for all adapter errors. Subclasses assign a fixed `code` and
@@ -23,12 +23,12 @@ export abstract class AdapterBaseError extends Error {
   /** Fixed process exit code per §4.3. */
   public abstract readonly exitCode: number;
 
-  public readonly location?: DriftLocation;
+  public readonly location?: WarningLocation;
   public readonly details?: Record<string, unknown>;
 
   protected constructor(
     message: string,
-    opts?: { location?: DriftLocation; details?: Record<string, unknown> },
+    opts?: { location?: WarningLocation; details?: Record<string, unknown> },
   ) {
     super(message);
     this.name = new.target.name;
@@ -54,7 +54,7 @@ export class ValidationError extends AdapterBaseError {
 
   public constructor(
     message: string,
-    opts?: { location?: DriftLocation; details?: Record<string, unknown> },
+    opts?: { location?: WarningLocation; details?: Record<string, unknown> },
   ) {
     super(message, opts);
   }
@@ -67,9 +67,9 @@ export class NotFoundError extends AdapterBaseError {
 
   public constructor(
     message: string,
-    opts?: { ref?: ArtifactRef; location?: DriftLocation; details?: Record<string, unknown> },
+    opts?: { ref?: ArtifactRef; location?: WarningLocation; details?: Record<string, unknown> },
   ) {
-    const location: DriftLocation | undefined = opts?.location ?? (opts?.ref ? { artifactRef: opts.ref } : undefined);
+    const location: WarningLocation | undefined = opts?.location ?? (opts?.ref ? { artifactRef: opts.ref } : undefined);
     super(message, { location, details: opts?.details });
   }
 }
@@ -87,7 +87,7 @@ export class AdapterError extends AdapterBaseError {
 
   public constructor(
     message: string,
-    opts?: { code?: string; location?: DriftLocation; details?: Record<string, unknown> },
+    opts?: { code?: string; location?: WarningLocation; details?: Record<string, unknown> },
   ) {
     super(message, { location: opts?.location, details: opts?.details });
     this.code = opts?.code ?? 'E_IO';
