@@ -6,15 +6,17 @@
 // each other: the human renderer is a projection of the same envelope the
 // JSON renderer serializes.
 //
-// Shape is per design spec §4.1 with the version constant taken from the
-// M1-S5 story description: `schema: "etak-cli/v1"`. Bumping the version
-// lets downstream consumers version-gate parsing on a breaking change.
+// Shape is per design spec §4.1: `schema: "etak-cli.v1"` with status
+// `"ok" | "error"`. The spec is authoritative — the M1-S5 story used
+// vague wording ("etak-cli/v1" / "success"), but the spec wins on divergence.
+// Bumping the version lets downstream consumers version-gate parsing on a
+// breaking change.
 
 import type { DriftWarning, StructuredError } from '../schemas/index.js';
 
-export const ENVELOPE_SCHEMA = 'etak-cli/v1' as const;
+export const ENVELOPE_SCHEMA = 'etak-cli.v1' as const;
 
-export type EnvelopeStatus = 'success' | 'error';
+export type EnvelopeStatus = 'ok' | 'error';
 
 export interface Envelope<T = unknown> {
   readonly schema: typeof ENVELOPE_SCHEMA;
@@ -42,7 +44,7 @@ export function envelopeSuccess<T>(
   return {
     schema: ENVELOPE_SCHEMA,
     command,
-    status: 'success',
+    status: 'ok',
     data,
     warnings,
     errors: [],

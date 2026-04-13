@@ -12,14 +12,14 @@ const ANSI_RE = /\u001b\[[0-9;]*m/;
 describe('output mode handling', () => {
   beforeAll(() => assertBuiltBin());
 
-  it('--output json emits a single valid JSON envelope with schema=etak-cli/v1', () => {
+  it('--output json emits a single valid JSON envelope with schema=etak-cli.v1', () => {
     const { dir, cleanup } = makeTempProject();
     try {
       const result = runCli(['--output', 'json', 'init'], { cwd: dir });
       expect(result.status).toBe(0);
       const env = parseEnvelope(result.stdout);
-      expect(env.schema).toBe('etak-cli/v1');
-      expect(env.status).toBe('success');
+      expect(env.schema).toBe('etak-cli.v1');
+      expect(env.status).toBe('ok');
       expect(env.command).toBe('init');
     } finally {
       cleanup();
@@ -47,7 +47,7 @@ describe('output mode handling', () => {
       const result = runCli(['init'], { cwd: dir });
       expect(result.status).toBe(0);
       const env = parseEnvelope(result.stdout);
-      expect(env.schema).toBe('etak-cli/v1');
+      expect(env.schema).toBe('etak-cli.v1');
     } finally {
       cleanup();
     }

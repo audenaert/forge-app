@@ -11,9 +11,9 @@ describe('envelope factories', () => {
     const env = envelopeSuccess('init', { root: '/tmp/x' });
 
     expect(env.schema).toBe(ENVELOPE_SCHEMA);
-    expect(env.schema).toBe('etak-cli/v1');
+    expect(env.schema).toBe('etak-cli.v1');
     expect(env.command).toBe('init');
-    expect(env.status).toBe('success');
+    expect(env.status).toBe('ok');
     expect(env.data).toEqual({ root: '/tmp/x' });
     expect(env.warnings).toEqual([]);
     expect(env.errors).toEqual([]);
@@ -25,7 +25,7 @@ describe('envelope factories', () => {
     ];
     const env = envelopeSuccess('idea update', { slug: 'x' }, w);
     expect(env.warnings).toEqual(w);
-    expect(env.status).toBe('success');
+    expect(env.status).toBe('ok');
   });
 
   it('envelopeError has null data and populated errors', () => {
@@ -34,7 +34,7 @@ describe('envelope factories', () => {
     ];
     const env = envelopeError('idea create', errs);
 
-    expect(env.schema).toBe('etak-cli/v1');
+    expect(env.schema).toBe('etak-cli.v1');
     expect(env.status).toBe('error');
     expect(env.data).toBeNull();
     expect(env.errors).toEqual(errs);

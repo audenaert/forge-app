@@ -50,7 +50,7 @@ export function renderHuman<T>(
   const colors = resolveColors(opts.color);
   const lines: string[] = [];
 
-  if (envelope.status === 'success') {
+  if (envelope.status === 'ok') {
     const summary = opts.summary
       ? opts.summary(envelope.data as T)
       : `${envelope.command} ok`;

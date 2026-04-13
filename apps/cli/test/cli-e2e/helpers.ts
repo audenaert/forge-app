@@ -61,7 +61,7 @@ export function makeTempProject(): { dir: string; cleanup: () => void } {
 export function parseEnvelope(raw: string): {
   schema: string;
   command: string;
-  status: 'success' | 'error';
+  status: 'ok' | 'error';
   data: unknown;
   warnings: unknown[];
   errors: { code: string; message: string }[];

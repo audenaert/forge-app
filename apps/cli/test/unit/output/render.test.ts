@@ -21,8 +21,8 @@ describe('renderJson', () => {
 
     expect(out.endsWith('\n')).toBe(true);
     const parsed = JSON.parse(out) as typeof env;
-    expect(parsed.schema).toBe('etak-cli/v1');
-    expect(parsed.status).toBe('success');
+    expect(parsed.schema).toBe('etak-cli.v1');
+    expect(parsed.status).toBe('ok');
     expect(parsed.data).toEqual({ root: '/tmp/x' });
   });
 

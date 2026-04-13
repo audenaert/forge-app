@@ -25,9 +25,9 @@ describe('etak init (built binary e2e)', () => {
     expect(result.stderr).toBe('');
 
     const env = parseEnvelope(result.stdout);
-    expect(env.status).toBe('success');
+    expect(env.status).toBe('ok');
     expect(env.command).toBe('init');
-    expect(env.schema).toBe('etak-cli/v1');
+    expect(env.schema).toBe('etak-cli.v1');
 
     for (const sub of [
       'objectives',
@@ -52,7 +52,7 @@ describe('etak init (built binary e2e)', () => {
     const second = runCli(['init'], { cwd: dir });
     expect(second.status).toBe(0);
     const env = parseEnvelope(second.stdout);
-    expect(env.status).toBe('success');
+    expect(env.status).toBe('ok');
     const data = env.data as { created: string[]; alreadyExisted: string[] };
     expect(data.created.length).toBe(0);
     expect(data.alreadyExisted.length).toBeGreaterThan(0);

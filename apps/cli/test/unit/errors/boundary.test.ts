@@ -83,7 +83,7 @@ describe('runCommand', () => {
     expect(streams.out.length).toBe(1);
     expect(streams.err.length).toBe(0);
     const parsed = JSON.parse(streams.out[0]!) as Envelope;
-    expect(parsed.status).toBe('success');
+    expect(parsed.status).toBe('ok');
   });
 
   it('catches ValidationError, writes to stderr, returns 1', async () => {

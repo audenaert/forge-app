@@ -32,7 +32,7 @@ export function writeResult<T>(
   streams: StreamPair,
   opts: WriteResultOptions<T> = {},
 ): void {
-  const target = envelope.status === 'success' ? streams.stdout : streams.stderr;
+  const target = envelope.status === 'ok' ? streams.stdout : streams.stderr;
 
   if (mode === 'json') {
     target.write(renderJson(envelope));
