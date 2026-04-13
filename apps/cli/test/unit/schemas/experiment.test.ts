@@ -49,6 +49,14 @@ describe('ExperimentFrontmatterSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('rejects a non-literal type field', () => {
+    const result = ExperimentFrontmatterSchema.safeParse({
+      ...baseExperiment,
+      type: 'idea',
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('rejects an action_plan with a blank branch', () => {
     const result = ExperimentFrontmatterSchema.safeParse({
       ...baseExperiment,

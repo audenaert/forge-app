@@ -49,6 +49,15 @@ describe('OpportunityFrontmatterSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('rejects a non-literal type field', () => {
+    const result = OpportunityFrontmatterSchema.safeParse({
+      name: 'X',
+      type: 'idea',
+      status: 'active',
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('rejects a non-slug entry in supports[]', () => {
     const result = OpportunityFrontmatterSchema.safeParse({
       name: 'X',

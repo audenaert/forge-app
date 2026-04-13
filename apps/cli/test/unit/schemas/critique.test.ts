@@ -42,6 +42,14 @@ describe('CritiqueFrontmatterSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('rejects a non-literal type field', () => {
+    const result = CritiqueFrontmatterSchema.safeParse({
+      ...baseCritique,
+      type: 'idea',
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('rejects a non-slug target', () => {
     const result = CritiqueFrontmatterSchema.safeParse({
       ...baseCritique,

@@ -42,6 +42,17 @@ describe('AssumptionFrontmatterSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('rejects a non-literal type field', () => {
+    const result = AssumptionFrontmatterSchema.safeParse({
+      name: 'X',
+      type: 'idea',
+      status: 'untested',
+      importance: 'high',
+      evidence: 'low',
+    });
+    expect(result.success).toBe(false);
+  });
+
   it('rejects an invalid evidence level', () => {
     const result = AssumptionFrontmatterSchema.safeParse({
       name: 'X',
