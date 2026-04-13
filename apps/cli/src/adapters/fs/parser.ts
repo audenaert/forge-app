@@ -66,6 +66,21 @@ export function parseMarkdown(source: string, ref: ArtifactRef): ParseResult {
   return { frontmatter, body };
 }
 
+/**
+ * Locate the character offset just past the end of the YAML frontmatter
+ * block, using the remark-frontmatter AST node's end position. Returns 0
+ * if no frontmatter is present. This trusts remark's positions (as the
+ * rest of the parser does for H2 headings) instead of hand-scanning for
+ * the closing \`---\` — the hand-scan was fragile on CRLF sources and
+ * duplicated logic already expressed in the AST.
+ */
+function findBodyStartFromTree(tree: Root): number {
+  const first = tree.children[0];
+  if (!first || first.type !== 'yaml') return 0;
+  const end = first.position?.end?.offset;
+  return typeof end === 'number' ? end : 0;
+}
+
 function extractFrontmatter(tree: Root, ref: ArtifactRef): ArtifactFrontmatter {
   // User-correctable frontmatter problems (missing/invalid YAML block,
   // missing required fields, type mismatch) raise ValidationError (exit 1)
@@ -132,7 +147,7 @@ function buildBodyDocument(
   template: BodyTemplate,
 ): BodyDocument {
   const warnings: DriftWarning[] = [];
-  const bodyStart = findBodyStart(source);
+  const bodyStart = findBodyStartFromTree(tree);
 
   // Critique = body-as-opaque. One section, no drift detection.
   if (isOpaqueBody(ref.type)) {
@@ -296,32 +311,6 @@ function buildBodyDocument(
   }
 
   return { sections, warnings };
-}
-
-/**
- * Locate the character offset just past the closing `---` of the YAML
- * frontmatter block. Returns 0 if no frontmatter is present. We rely on
- * the known delimiter shape rather than AST position data because we want
- * a hard guarantee `source.slice(bodyStart)` starts at the body.
- */
-function findBodyStart(source: string): number {
-  if (!source.startsWith('---')) {
-    return 0;
-  }
-  const lines = source.split('\n');
-  if (lines.length < 2 || lines[0] !== '---') {
-    return 0;
-  }
-  for (let i = 1; i < lines.length; i += 1) {
-    if (lines[i] === '---') {
-      let offset = 0;
-      for (let j = 0; j <= i; j += 1) {
-        offset += lines[j]!.length + 1; // +1 for the newline split removed
-      }
-      return offset;
-    }
-  }
-  return 0;
 }
 
 function collectH2Positions(tree: Root, source: string): H2Position[] {
