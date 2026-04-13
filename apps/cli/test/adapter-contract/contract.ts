@@ -1,0 +1,375 @@
+// Shared adapter contract test suite.
+//
+// Consumed by `fs-adapter.test.ts` (real behavior) and
+// `graphql-adapter.test.ts` (NotWiredError behavior). The suite assumes
+// the factory returns a fresh adapter plus a cleanup function for each
+// invocation, so tests are isolated.
+
+import { describe, it, expect, afterEach } from 'vitest';
+
+import type {
+  ArtifactRef,
+  BodyDocument,
+  Document,
+  DriftWarning,
+  StorageAdapter,
+} from '../../src/index.js';
+import { NotWiredError, ValidationError } from '../../src/index.js';
+
+export interface AdapterFactory {
+  (): Promise<{ adapter: StorageAdapter; cleanup: () => Promise<void> }>;
+}
+
+export interface ContractOptions {
+  /** Human-readable label for the describe block. */
+  name: string;
+  factory: AdapterFactory;
+  /**
+   * When true, every method is expected to throw NotWiredError rather than
+   * implement real behavior. Used by the graphql stub's contract run.
+   */
+  expectNotWired?: boolean;
+}
+
+export function runAdapterContractTests(opts: ContractOptions): void {
+  describe(`${opts.name} (StorageAdapter contract)`, () => {
+    if (opts.expectNotWired) {
+      runNotWiredContract(opts.factory);
+    } else {
+      runRealContract(opts.factory);
+    }
+  });
+}
+
+// -- Real-behavior contract (fs and any future real adapter) ------------------
+
+function runRealContract(factory: AdapterFactory): void {
+  const cleanups: Array<() => Promise<void>> = [];
+
+  async function mk(): Promise<StorageAdapter> {
+    const { adapter, cleanup } = await factory();
+    cleanups.push(cleanup);
+    return adapter;
+  }
+
+  afterEach(async () => {
+    while (cleanups.length > 0) {
+      const c = cleanups.shift()!;
+      try {
+        await c();
+      } catch {
+        /* best-effort cleanup */
+      }
+    }
+  });
+
+  it('write then read round-trips frontmatter and body faithfully', async () => {
+    const adapter = await mk();
+    const doc = makeIdea('round-trip-demo', {
+      sections: [
+        section('Description', 'One-line description.'),
+        section('Why This Could Work', 'Because it is simple.'),
+      ],
+    });
+    await adapter.write(doc);
+    const read = await adapter.read(doc.ref);
+
+    expect(read.frontmatter.name).toBe(doc.frontmatter.name);
+    expect(read.frontmatter.type).toBe('idea');
+    expect(read.frontmatter['status']).toBe('draft');
+
+    const slugs = read.body.sections.map((s) => s.slug);
+    expect(slugs).toEqual(['description', 'why_this_could_work']);
+    expect(read.body.sections[0]!.content.trim()).toBe('One-line description.');
+    expect(read.body.sections[1]!.content.trim()).toBe('Because it is simple.');
+    expect(missingRequired(read.warnings)).toHaveLength(0);
+  });
+
+  it('list returns written refs and filters by status', async () => {
+    const adapter = await mk();
+    await adapter.write(makeIdea('alpha', { status: 'draft' }));
+    await adapter.write(makeIdea('beta', { status: 'validated' }));
+    await adapter.write(makeIdea('gamma', { status: 'draft' }));
+
+    const all = await adapter.list('idea');
+    expect(all.map((r) => r.slug).sort()).toEqual(['alpha', 'beta', 'gamma']);
+
+    const drafts = await adapter.list('idea', { status: 'draft' });
+    expect(drafts.map((r) => r.slug).sort()).toEqual(['alpha', 'gamma']);
+  });
+
+  it('update changes a frontmatter field and leaves the rest intact', async () => {
+    const adapter = await mk();
+    const doc = makeIdea('upd-fm');
+    await adapter.write(doc);
+    await adapter.update(doc.ref, { frontmatter: { status: 'validated' } });
+
+    const read = await adapter.read(doc.ref);
+    expect(read.frontmatter['status']).toBe('validated');
+    expect(read.frontmatter.name).toBe(doc.frontmatter.name);
+    expect(read.body.sections.length).toBe(doc.body.sections.length);
+  });
+
+  it('section-replace rewrites one section, preserves the others and their order', async () => {
+    const adapter = await mk();
+    const doc = makeIdea('upd-section', {
+      sections: [
+        section('Description', 'Old description.'),
+        section('Why This Could Work', 'Old rationale.'),
+        section('Open Questions', 'Old questions.'),
+      ],
+    });
+    await adapter.write(doc);
+
+    await adapter.update(doc.ref, {
+      body: {
+        kind: 'section-replace',
+        sectionSlug: 'why_this_could_work',
+        content: 'New rationale here.',
+      },
+    });
+
+    const read = await adapter.read(doc.ref);
+    expect(read.body.sections.map((s) => s.slug)).toEqual([
+      'description',
+      'why_this_could_work',
+      'open_questions',
+    ]);
+    expect(read.body.sections[1]!.content.trim()).toBe('New rationale here.');
+    expect(read.body.sections[0]!.content.trim()).toBe('Old description.');
+    expect(read.body.sections[2]!.content.trim()).toBe('Old questions.');
+  });
+
+  it('body-replace rewrites the whole body and preserves frontmatter', async () => {
+    const adapter = await mk();
+    const doc = makeIdea('upd-body');
+    await adapter.write(doc);
+
+    await adapter.update(doc.ref, {
+      body: {
+        kind: 'body-replace',
+        content:
+          '## Description\n\nFresh description.\n\n## Why This Could Work\n\nFresh rationale.\n',
+      },
+    });
+
+    const read = await adapter.read(doc.ref);
+    expect(read.frontmatter.name).toBe(doc.frontmatter.name);
+    expect(read.body.sections.map((s) => s.slug)).toEqual([
+      'description',
+      'why_this_could_work',
+    ]);
+    expect(read.body.sections[0]!.content.trim()).toBe('Fresh description.');
+  });
+
+  it('link appends to the target field and shows on subsequent read', async () => {
+    const adapter = await mk();
+    const idea = makeIdea('linker');
+    const opp = makeOpportunity('linkee');
+    await adapter.write(idea);
+    await adapter.write(opp);
+
+    const result = await adapter.link(idea.ref, 'addresses', opp.ref);
+    expect(result.warnings.some((w) => w.kind === 'dangling_ref')).toBe(false);
+
+    const read = await adapter.read(idea.ref);
+    expect(Array.isArray(read.frontmatter['addresses'])).toBe(true);
+    expect((read.frontmatter['addresses'] as string[]).includes('linkee')).toBe(true);
+  });
+
+  it('link to a non-existent target emits dangling_ref but does not throw', async () => {
+    const adapter = await mk();
+    const idea = makeIdea('dangling-source');
+    await adapter.write(idea);
+
+    const result = await adapter.link(idea.ref, 'addresses', {
+      type: 'opportunity',
+      slug: 'does-not-exist',
+    });
+    expect(result.warnings.some((w) => w.kind === 'dangling_ref')).toBe(true);
+
+    const read = await adapter.read(idea.ref);
+    expect((read.frontmatter['addresses'] as string[]).includes('does-not-exist')).toBe(true);
+  });
+
+  it('slug collision on write errors by default with no silent overwrite', async () => {
+    const adapter = await mk();
+    const doc = makeIdea('dup');
+    await adapter.write(doc);
+
+    const second = makeIdea('dup', { name: 'Second attempt' });
+    await expect(adapter.write(second)).rejects.toBeInstanceOf(ValidationError);
+
+    const read = await adapter.read(doc.ref);
+    // The original name survives; no silent overwrite.
+    expect(read.frontmatter.name).toBe(doc.frontmatter.name);
+  });
+
+  it('round-trips an extra (non-template) section, flags it as extra', async () => {
+    const adapter = await mk();
+    const doc = makeIdea('with-extra', {
+      sections: [
+        section('Description', 'Desc.'),
+        section('Why This Could Work', 'Rationale.'),
+        section('Notes to Self', 'Just a thought.'),
+      ],
+    });
+    await adapter.write(doc);
+
+    const read = await adapter.read(doc.ref);
+    const notes = read.body.sections.find((s) => s.heading === 'Notes to Self');
+    expect(notes).toBeDefined();
+    expect(notes?.status).toBe('extra');
+    expect(notes?.content.trim()).toBe('Just a thought.');
+    expect(read.warnings.some((w) => w.kind === 'extra_section')).toBe(true);
+  });
+
+  it('flags a missing required section as a warning but still reads successfully', async () => {
+    const adapter = await mk();
+    const doc = makeIdea('missing-required', {
+      sections: [
+        // Intentionally drop "Description", which is required.
+        section('Why This Could Work', 'Rationale only.'),
+      ],
+    });
+    await adapter.write(doc);
+
+    const read = await adapter.read(doc.ref);
+    const missing = read.warnings.filter((w) => w.kind === 'missing_required_section');
+    expect(missing.length).toBeGreaterThanOrEqual(1);
+    expect(missing[0]!.details?.['sectionSlug']).toBe('description');
+  });
+
+  it('critique is body-as-opaque: no drift warnings for any body content', async () => {
+    const adapter = await mk();
+    const critique: Document = {
+      ref: { type: 'critique', slug: 'opaque-body' },
+      frontmatter: {
+        name: 'A free-form critique',
+        type: 'critique',
+      },
+      body: {
+        sections: [
+          {
+            heading: '',
+            slug: '__opaque__',
+            status: 'extra',
+            content:
+              'This is a narrative critique with no fixed structure.\n\n' +
+              'It has paragraphs, **emphasis**, and `inline code`.',
+          },
+        ],
+        warnings: [],
+      },
+      warnings: [],
+    };
+    await adapter.write(critique);
+
+    const read = await adapter.read(critique.ref);
+    expect(read.warnings).toHaveLength(0);
+    expect(read.body.sections).toHaveLength(1);
+    expect(read.body.sections[0]!.content).toContain('narrative critique');
+    expect(read.body.sections[0]!.content).toContain('**emphasis**');
+  });
+}
+
+// -- NotWired contract (graphql stub) -----------------------------------------
+
+function runNotWiredContract(factory: AdapterFactory): void {
+  it('every StorageAdapter method throws NotWiredError', async () => {
+    const { adapter } = await factory();
+    const ref: ArtifactRef = { type: 'idea', slug: 'anything' };
+    const doc: Document = makeIdea('anything');
+
+    const calls: Array<[string, () => Promise<unknown>]> = [
+      ['read', () => adapter.read(ref)],
+      ['write', () => adapter.write(doc)],
+      ['list', () => adapter.list('idea')],
+      ['update', () => adapter.update(ref, { frontmatter: { status: 'draft' } })],
+      ['link', () => adapter.link(ref, 'addresses', { type: 'opportunity', slug: 'x' })],
+      ['unlink', () => adapter.unlink(ref, 'addresses', { type: 'opportunity', slug: 'x' })],
+    ];
+
+    for (const [method, call] of calls) {
+      await expect(call(), `${method} should throw NotWiredError`).rejects.toBeInstanceOf(
+        NotWiredError,
+      );
+      try {
+        await call();
+      } catch (err) {
+        expect(err).toBeInstanceOf(NotWiredError);
+        const e = err as NotWiredError;
+        expect(e.code).toBe('E_NOT_WIRED');
+        expect(e.exitCode).toBe(3);
+        expect(e.operation).toBe(method);
+      }
+    }
+  });
+}
+
+// -- fixtures ----------------------------------------------------------------
+
+interface IdeaOpts {
+  status?: string;
+  name?: string;
+  sections?: ReturnType<typeof section>[];
+}
+
+function makeIdea(slug: string, opts: IdeaOpts = {}): Document {
+  const sections = opts.sections ?? [
+    section('Description', 'A one-line description.'),
+    section('Why This Could Work', 'Because it does.'),
+  ];
+  return {
+    ref: { type: 'idea', slug },
+    frontmatter: {
+      name: opts.name ?? `Idea ${slug}`,
+      type: 'idea',
+      status: opts.status ?? 'draft',
+    },
+    body: buildBody(sections),
+    warnings: [],
+  };
+}
+
+function makeOpportunity(slug: string): Document {
+  return {
+    ref: { type: 'opportunity', slug },
+    frontmatter: {
+      name: `Opportunity ${slug}`,
+      type: 'opportunity',
+      status: 'active',
+    },
+    body: buildBody([
+      section('Description', 'Opportunity description.'),
+      section('Evidence', 'Evidence text.'),
+    ]),
+    warnings: [],
+  };
+}
+
+function section(heading: string, content: string) {
+  return { heading, content };
+}
+
+function buildBody(
+  entries: Array<{ heading: string; content: string }>,
+): BodyDocument {
+  return {
+    sections: entries.map((e) => ({
+      heading: e.heading,
+      slug: slugify(e.heading),
+      status: 'canonical' as const,
+      content: e.content,
+    })),
+    warnings: [],
+  };
+}
+
+function slugify(heading: string): string {
+  return heading.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function missingRequired(warnings: DriftWarning[]): DriftWarning[] {
+  return warnings.filter((w) => w.kind === 'missing_required_section');
+}
