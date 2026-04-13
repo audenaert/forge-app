@@ -174,8 +174,11 @@ export class FsAdapter implements StorageAdapter {
     }
 
     let nextBody: ParsedBodyDocument = existing.body;
+    const updateWarnings: DriftWarning[] = [];
     if (changes.body) {
-      nextBody = applyBodyUpdate(existing.body, changes.body, ref);
+      const applied = applyBodyUpdate(existing.body, changes.body, ref);
+      nextBody = applied.body;
+      updateWarnings.push(...applied.warnings);
     }
 
     const text = serializeDocument(mergedFrontmatter, nextBody);
@@ -183,7 +186,10 @@ export class FsAdapter implements StorageAdapter {
     await atomicWrite(file, text);
 
     const reread = await this.read(ref);
-    return { document: reread, warnings: reread.warnings.slice() };
+    return {
+      document: reread,
+      warnings: mergeWarnings(reread.warnings, updateWarnings),
+    };
   }
 
   public async link(from: ArtifactRef, field: string, to: ArtifactRef): Promise<WriteResult> {
@@ -246,21 +252,35 @@ export class FsAdapter implements StorageAdapter {
 
 // --- helpers -----------------------------------------------------------------
 
+interface AppliedBodyUpdate {
+  body: ParsedBodyDocument;
+  /**
+   * Warnings that arose from applying the update itself, NOT the
+   * warnings already on `body.warnings`. The caller merges these into
+   * the `WriteResult.warnings` envelope so the chassis (M1-S5) can
+   * render them alongside parse-time drift.
+   */
+  warnings: DriftWarning[];
+}
+
 function applyBodyUpdate(
   body: ParsedBodyDocument,
   update: BodyUpdate,
   ref: ArtifactRef,
-): ParsedBodyDocument {
+): AppliedBodyUpdate {
   if (update.kind === 'body-replace') {
     // Re-parse the new raw body by constructing a pseudo-source with a
     // minimal frontmatter so the parser has something to match against
     // the type. This keeps the drift-detection path uniform.
     const pseudo = `---\nname: "_"\ntype: ${ref.type}\n---\n\n${update.content}`;
     const parsed = parseMarkdown(pseudo, ref);
-    return parsed.body;
+    return { body: parsed.body, warnings: [] };
   }
   // section-replace: find a section by slug and rewrite its content. If
-  // the section doesn't exist, append a new one as an extra at the end.
+  // the section doesn't exist, append a new one as an extra at the end
+  // and surface an `extra_section` drift warning so the caller can
+  // render it — silently materializing a new section on a \"replace\"
+  // action was the reviewer's concern.
   const target = update.sectionSlug;
   const nextSections: ParsedBodySection[] = body.sections.map((s) => {
     if (s.slug === target) {
@@ -269,15 +289,27 @@ function applyBodyUpdate(
     return s;
   });
   const found = body.sections.some((s) => s.slug === target);
+  const warnings: DriftWarning[] = [];
   if (!found) {
+    const heading = friendlyHeading(target);
     nextSections.push({
-      heading: friendlyHeading(target),
+      heading,
       slug: target,
       status: 'extra',
       content: update.content,
     });
+    warnings.push({
+      kind: 'extra_section',
+      severity: 'info',
+      message: `section-replace on unknown slug "${target}" appended a new extra section "${heading}"`,
+      location: { artifactRef: ref, section: heading },
+      details: { sectionSlug: target, reason: 'section_replace_fallback' },
+    });
   }
-  return { sections: nextSections, warnings: body.warnings.slice() };
+  return {
+    body: { sections: nextSections, warnings: body.warnings.slice() },
+    warnings,
+  };
 }
 
 function friendlyHeading(slug: string): string {

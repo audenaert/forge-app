@@ -310,6 +310,42 @@ function runRealContract(factory: AdapterFactory): void {
     ).toBeUndefined();
   });
 
+  it('section-replace on an unknown slug appends and surfaces extra_section warning', async () => {
+    // The reviewer flagged silent append: calling section-replace with a
+    // slug that doesn't match any parsed section used to materialize a
+    // new extra section with no signal to the caller. Now it emits an
+    // `extra_section` drift warning in the WriteResult envelope so the
+    // chassis (M1-S5) can decide how to render it.
+    const adapter = await mk();
+    const doc = makeIdea('upd-section-unknown', {
+      sections: [
+        section('Description', 'Desc.'),
+        section('Why This Could Work', 'Rationale.'),
+      ],
+    });
+    await adapter.write(doc);
+
+    const result = await adapter.update(doc.ref, {
+      body: {
+        kind: 'section-replace',
+        sectionSlug: 'not_a_real_section',
+        content: 'Surprise! I am an extra now.',
+      },
+    });
+    expect(
+      result.warnings.some(
+        (w) =>
+          w.kind === 'extra_section' &&
+          w.details?.['reason'] === 'section_replace_fallback',
+      ),
+    ).toBe(true);
+
+    const read = await adapter.read(doc.ref);
+    const appended = read.body.sections.find((s) => s.slug === 'not_a_real_section');
+    expect(appended).toBeDefined();
+    expect(appended?.content.trim()).toBe('Surprise! I am an extra now.');
+  });
+
   it('unlink removes a link on a subsequent read', async () => {
     const adapter = await mk();
     const idea = makeIdea('unlinker');
