@@ -16,7 +16,7 @@
 import type { Command } from 'commander';
 
 import type { ChassisGlobals } from '../../cli-runtime.js';
-import type { CommandContext } from '../../context.js';
+import type { CommandContext, CommandContextFactory } from '../../context.js';
 import type { ArtifactRef } from '../../schemas/index.js';
 import type { ListFilter } from '../../adapters/operations.js';
 import { runCommand } from '../../errors/boundary.js';
@@ -24,7 +24,6 @@ import { envelopeSuccess } from '../../output/envelope.js';
 import type { Envelope } from '../../output/envelope.js';
 import { ValidationError } from '../../adapters/errors.js';
 
-import type { CommandContextFactory } from './shared.js';
 import { collectStrings } from '../shared.js';
 
 export interface ObjectiveListOptions {

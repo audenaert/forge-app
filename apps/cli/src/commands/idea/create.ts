@@ -18,7 +18,7 @@
 import type { Command } from 'commander';
 
 import type { ChassisGlobals } from '../../cli-runtime.js';
-import type { CommandContext } from '../../context.js';
+import type { CommandContext, CommandContextFactory } from '../../context.js';
 import type { ArtifactRef, DriftWarning } from '../../schemas/index.js';
 import type { Document, ArtifactFrontmatter } from '../../adapters/operations.js';
 import { runCommand } from '../../errors/boundary.js';
@@ -27,7 +27,6 @@ import type { Envelope } from '../../output/envelope.js';
 import { IdeaFrontmatterSchema, IdeaBodyTemplate } from '../../schemas/index.js';
 import { ValidationError } from '../../adapters/errors.js';
 
-import type { CommandContextFactory } from './shared.js';
 import {
   collectStrings,
   deriveSlug,

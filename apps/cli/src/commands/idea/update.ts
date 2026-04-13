@@ -27,7 +27,7 @@
 import type { Command } from 'commander';
 
 import type { ChassisGlobals } from '../../cli-runtime.js';
-import type { CommandContext } from '../../context.js';
+import type { CommandContext, CommandContextFactory } from '../../context.js';
 import type { ArtifactRef, DriftWarning } from '../../schemas/index.js';
 import type {
   ArtifactFrontmatter,
@@ -40,7 +40,6 @@ import type { Envelope } from '../../output/envelope.js';
 import { ValidationError } from '../../adapters/errors.js';
 import { IdeaStatusSchema } from '../../schemas/index.js';
 
-import type { CommandContextFactory } from './shared.js';
 import { collectStrings, readFileUtf8, readStdin, splitKv } from '../shared.js';
 
 export interface IdeaUpdateOptions {

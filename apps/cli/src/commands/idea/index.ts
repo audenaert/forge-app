@@ -12,7 +12,7 @@ import type { Command } from 'commander';
 import type { ChassisGlobals } from '../../cli-runtime.js';
 import { runCommand } from '../../errors/boundary.js';
 import { createCommandContext } from '../../context.js';
-import type { CommandContextFactory } from './shared.js';
+import type { CommandContextFactory } from '../../context.js';
 
 import { registerCreateCommand } from './create.js';
 import { registerGetCommand } from './get.js';
