@@ -11,6 +11,7 @@
 import { readFile } from 'node:fs/promises';
 
 import { ValidationError } from '../adapters/errors.js';
+import type { BodyDocument, DriftWarning, SectionedBodyTemplate } from '../schemas/types.js';
 
 /**
  * Kebab-case slug derivation per design spec §5. Matches the slug regex
@@ -67,6 +68,38 @@ export async function readFileUtf8(path: string): Promise<string> {
  */
 export function collectStrings(value: string, previous: string[] = []): string[] {
   return [...previous, value];
+}
+
+/**
+ * Placeholder injected into required body sections when scaffolding a
+ * canonical body on create. Without a placeholder, the parser treats
+ * empty-but-present as canonical and `create → get` reports zero drift on
+ * a structurally-incomplete artifact, hiding the fact that the author
+ * never filled it in.
+ */
+export const REQUIRED_SECTION_PLACEHOLDER = '_TODO: fill in_' as const;
+
+/**
+ * Build the canonical `BodyDocument` for a sectioned artifact template.
+ * Required sections get the TODO placeholder; optional sections stay empty.
+ *
+ * Takes a `SectionedBodyTemplate` specifically, not a `BodyTemplate`: the
+ * opaque (critique) case is handled by a different path and is explicitly
+ * out of scope for this helper. Callers that hold a `BodyTemplate` must
+ * narrow before calling — a type error at the call site is exactly what we
+ * want.
+ */
+export function scaffoldCanonicalBody(template: SectionedBodyTemplate): BodyDocument {
+  return {
+    sections: template.sections.map((s) => ({
+      heading: s.name,
+      slug: s.slug,
+      status: 'canonical' as const,
+      canonicalOrder: s.order,
+      content: s.required ? REQUIRED_SECTION_PLACEHOLDER : '',
+    })),
+    warnings: [] as DriftWarning[],
+  };
 }
 
 /**

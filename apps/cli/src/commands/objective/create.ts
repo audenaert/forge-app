@@ -25,7 +25,12 @@ import { ObjectiveFrontmatterSchema, ObjectiveBodyTemplate } from '../../schemas
 import { ValidationError } from '../../adapters/errors.js';
 
 import type { CommandContextFactory } from './shared.js';
-import { deriveSlug, readFileUtf8, readStdin } from '../shared.js';
+import {
+  deriveSlug,
+  readFileUtf8,
+  readStdin,
+  scaffoldCanonicalBody,
+} from '../shared.js';
 
 export interface ObjectiveCreateOptions {
   name?: string;
@@ -130,22 +135,10 @@ export async function runObjectiveCreate(
 
   const ref: ArtifactRef = { type: 'objective', slug: rawSlug };
 
-  // Required sections scaffold with a placeholder TODO marker; optional
-  // sections stay empty. Without a placeholder, the parser treats
-  // empty-but-present as canonical and `create → get` reports zero
-  // drift on a structurally-incomplete artifact, hiding the fact that
-  // the author never filled it in.
-  const REQUIRED_PLACEHOLDER = '_TODO: fill in_';
-  const emptyBody = {
-    sections: ObjectiveBodyTemplate.sections.map((s) => ({
-      heading: s.name,
-      slug: s.slug,
-      status: 'canonical' as const,
-      canonicalOrder: s.order,
-      content: s.required ? REQUIRED_PLACEHOLDER : '',
-    })),
-    warnings: [] as DriftWarning[],
-  };
+  // Required sections scaffold with a TODO placeholder so `create → get`
+  // surfaces drift on a structurally-incomplete artifact instead of
+  // hiding it. See `scaffoldCanonicalBody` for the rules.
+  const emptyBody = scaffoldCanonicalBody(ObjectiveBodyTemplate);
 
   const ctx: CommandContext = await factory({
     cwd: globals.cwd,
