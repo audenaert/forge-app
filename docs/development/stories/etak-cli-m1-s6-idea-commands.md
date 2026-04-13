@@ -22,6 +22,7 @@ acceptance_criteria:
   - "`etak idea link <slug> --addresses <opportunity-slug>` adds a link; removing a link works per the spec's flag shape"
   - "Every command path has an e2e test; drift-warning paths are explicitly covered"
   - "Validation failures exit 1; not-found exits 2; IO/permission errors exit 3; unknown subcommand exits 4"
+  - "`etak idea create` with an already-used slug exits 1 (validation error) — slug collision is user-correctable (rename the artifact), distinct from IO/permission errors (exit 3). Rationale: exit 3 is reserved for conditions the user cannot fix by changing their input (broken filesystem, disk full, permission denied); a colliding slug is fixed by picking a different name, which is the definition of a validation error."
 ---
 
 ## Description
