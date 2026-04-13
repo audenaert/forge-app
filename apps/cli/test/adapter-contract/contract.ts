@@ -310,6 +310,87 @@ function runRealContract(factory: AdapterFactory): void {
     ).toBeUndefined();
   });
 
+  it('update with body=[section-replace, section-replace] applies both in a single write', async () => {
+    const adapter = await mk();
+    const doc = makeIdea('multi-op-sections', {
+      sections: [
+        section('Description', 'Old description.'),
+        section('Why This Could Work', 'Old rationale.'),
+        section('Open Questions', 'Old questions.'),
+      ],
+    });
+    await adapter.write(doc);
+
+    const result = await adapter.update(doc.ref, {
+      body: [
+        { kind: 'section-replace', sectionSlug: 'description', content: 'New desc.' },
+        { kind: 'section-replace', sectionSlug: 'why_this_could_work', content: 'New rat.' },
+      ],
+    });
+    // No surprise warnings from applying a pair of known-section replaces.
+    expect(
+      result.warnings.filter((w) => w.kind === 'extra_section').length,
+    ).toBe(0);
+
+    const read = await adapter.read(doc.ref);
+    expect(read.body.sections.map((s) => s.slug)).toEqual([
+      'description',
+      'why_this_could_work',
+      'open_questions',
+    ]);
+    expect(read.body.sections[0]!.content.trim()).toBe('New desc.');
+    expect(read.body.sections[1]!.content.trim()).toBe('New rat.');
+    // Untouched section preserved verbatim.
+    expect(read.body.sections[2]!.content.trim()).toBe('Old questions.');
+  });
+
+  it('update with body=[body-replace, section-replace] applies section-replace to the new body', async () => {
+    const adapter = await mk();
+    const doc = makeIdea('multi-op-body-then-section');
+    await adapter.write(doc);
+
+    await adapter.update(doc.ref, {
+      body: [
+        {
+          kind: 'body-replace',
+          content:
+            '## Description\n\nFresh description.\n\n## Why This Could Work\n\nFresh rationale.\n',
+        },
+        {
+          kind: 'section-replace',
+          sectionSlug: 'description',
+          content: 'Second-pass description.',
+        },
+      ],
+    });
+
+    const read = await adapter.read(doc.ref);
+    expect(read.body.sections.map((s) => s.slug)).toEqual([
+      'description',
+      'why_this_could_work',
+    ]);
+    // body-replace reset the running body; the following section-replace
+    // operated on the reset state, leaving Description as the second-pass
+    // content and Why-This-Could-Work as the body-replace content.
+    expect(read.body.sections[0]!.content.trim()).toBe('Second-pass description.');
+    expect(read.body.sections[1]!.content.trim()).toBe('Fresh rationale.');
+  });
+
+  it('update with body=[single-op] array is equivalent to the non-array form', async () => {
+    const adapter = await mk();
+    const doc = makeIdea('multi-op-single-element');
+    await adapter.write(doc);
+
+    await adapter.update(doc.ref, {
+      body: [
+        { kind: 'section-replace', sectionSlug: 'description', content: 'Array wrapper.' },
+      ],
+    });
+    const read = await adapter.read(doc.ref);
+    const desc = read.body.sections.find((s) => s.slug === 'description');
+    expect(desc?.content.trim()).toBe('Array wrapper.');
+  });
+
   it('section-replace on an unknown slug appends and surfaces extra_section warning', async () => {
     // The reviewer flagged silent append: calling section-replace with a
     // slug that doesn't match any parsed section used to materialize a
