@@ -3,12 +3,7 @@
 import { z } from 'zod';
 
 import type { BodyDocument, SectionedBodyTemplate } from './types.js';
-import {
-  BodyDocumentSchema,
-  LinkArraySchema,
-  NameSchema,
-  ScalarLinkSchema,
-} from './common.js';
+import { BodyDocumentSchema, LinkArraySchema, NameSchema } from './common.js';
 
 export const IdeaStatusSchema = z.enum([
   'draft',
@@ -22,10 +17,12 @@ export const IdeaStatusSchema = z.enum([
 export type IdeaStatus = z.infer<typeof IdeaStatusSchema>;
 
 /**
- * Idea frontmatter. `delivered_by` is a scalar link (string-or-null): the
- * fixtures show both `null` (most ideas) and a real slug (`graph-backed-
- * artifact-store.md` points at its own project slug), so the schema accepts
- * both. `.optional()` lets authors omit the field entirely.
+ * Idea frontmatter. `delivered_by` is an array link field: an idea may be
+ * delivered by multiple stories or tasks, and that traceability is key for
+ * tracking back from implementations to business requirements. Defaults to
+ * an empty array per the incremental-formalism design choice documented on
+ * `LinkArraySchema` in `common.ts` — an unlinked idea is a drift signal,
+ * not a parse error.
  */
 export const IdeaFrontmatterSchema = z
   .object({
@@ -33,7 +30,7 @@ export const IdeaFrontmatterSchema = z
     type: z.literal('idea'),
     status: IdeaStatusSchema,
     addresses: LinkArraySchema,
-    delivered_by: ScalarLinkSchema.optional(),
+    delivered_by: LinkArraySchema,
   })
   .passthrough();
 
