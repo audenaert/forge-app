@@ -25,6 +25,7 @@ import type { Envelope } from '../../output/envelope.js';
 import { ValidationError } from '../../adapters/errors.js';
 
 import type { CommandContextFactory } from './shared.js';
+import { collectStrings } from '../shared.js';
 
 export interface ObjectiveListOptions {
   status?: string[];
@@ -39,10 +40,6 @@ export interface ObjectiveListEntry {
 
 export interface ObjectiveListResult {
   items: ObjectiveListEntry[];
-}
-
-function collectStrings(value: string, previous: string[] = []): string[] {
-  return [...previous, value];
 }
 
 export function registerListCommand(

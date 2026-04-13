@@ -10,6 +10,8 @@
 
 import { readFile } from 'node:fs/promises';
 
+import { ValidationError } from '../adapters/errors.js';
+
 /**
  * Kebab-case slug derivation per design spec §5. Matches the slug regex
  * `^[a-z0-9][a-z0-9-]*[a-z0-9]$`:
@@ -56,4 +58,37 @@ export async function readStdin(): Promise<string> {
 /** Read a file and return its contents as utf-8. Bubbles up ENOENT etc. */
 export async function readFileUtf8(path: string): Promise<string> {
   return readFile(path, 'utf8');
+}
+
+/**
+ * Commander-level collector for repeatable string options. Returns the
+ * accumulated array so each additional `--addresses foo --addresses bar`
+ * flag appends to the same list.
+ */
+export function collectStrings(value: string, previous: string[] = []): string[] {
+  return [...previous, value];
+}
+
+/**
+ * Split a `<slug>=<content>` flag value on the first `=`. Any additional
+ * `=` characters are preserved in the content portion (so
+ * `description=a=b=c` yields `{slug: 'description', value: 'a=b=c'}`).
+ * An empty slug or a missing `=` is a ValidationError. Exported for
+ * unit tests.
+ */
+export function splitKv(entry: string, flag: string): { slug: string; value: string } {
+  const eq = entry.indexOf('=');
+  if (eq === -1) {
+    throw new ValidationError(
+      `${flag} expects <slug>=<value>, got "${entry}"`,
+    );
+  }
+  const slug = entry.slice(0, eq).trim();
+  const value = entry.slice(eq + 1);
+  if (slug.length === 0) {
+    throw new ValidationError(
+      `${flag} requires a non-empty section slug before "="`,
+    );
+  }
+  return { slug, value };
 }

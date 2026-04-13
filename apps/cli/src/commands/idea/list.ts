@@ -22,6 +22,7 @@ import type { Envelope } from '../../output/envelope.js';
 import { ValidationError } from '../../adapters/errors.js';
 
 import type { CommandContextFactory } from './shared.js';
+import { collectStrings } from '../shared.js';
 
 export interface IdeaListOptions {
   status?: string[];
@@ -37,10 +38,6 @@ export interface IdeaListEntry {
 
 export interface IdeaListResult {
   items: IdeaListEntry[];
-}
-
-function collectStrings(value: string, previous: string[] = []): string[] {
-  return [...previous, value];
 }
 
 export function registerListCommand(

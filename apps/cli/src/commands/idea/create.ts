@@ -28,7 +28,7 @@ import { IdeaFrontmatterSchema, IdeaBodyTemplate } from '../../schemas/index.js'
 import { ValidationError } from '../../adapters/errors.js';
 
 import type { CommandContextFactory } from './shared.js';
-import { deriveSlug, readFileUtf8, readStdin } from '../shared.js';
+import { collectStrings, deriveSlug, readFileUtf8, readStdin } from '../shared.js';
 
 export interface IdeaCreateOptions {
   name?: string;
@@ -51,14 +51,6 @@ export interface IdeaCreateResult {
   path: string;
 }
 
-/**
- * Commander-level collector for repeatable string options. Returns the
- * accumulated array so each additional `--addresses foo --addresses bar`
- * flag appends to the same list.
- */
-function collectStrings(value: string, previous: string[] = []): string[] {
-  return [...previous, value];
-}
 
 export function registerCreateCommand(
   group: Command,

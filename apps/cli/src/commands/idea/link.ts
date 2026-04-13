@@ -22,6 +22,7 @@ import type { Envelope } from '../../output/envelope.js';
 import { ValidationError } from '../../adapters/errors.js';
 
 import type { CommandContextFactory } from './shared.js';
+import { collectStrings } from '../shared.js';
 
 export interface IdeaLinkOptions {
   addresses?: string[];
@@ -34,10 +35,6 @@ export interface IdeaLinkResult {
   ref: ArtifactRef;
   added: Array<{ field: string; to: string }>;
   removed: Array<{ field: string; to: string }>;
-}
-
-function collectStrings(value: string, previous: string[] = []): string[] {
-  return [...previous, value];
 }
 
 export function registerLinkCommand(
