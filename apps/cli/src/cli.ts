@@ -44,6 +44,7 @@ import {
 } from './cli-runtime.js';
 import { registerNotImplementedType } from './commands/not-implemented.js';
 import { registerIdeaCommands } from './commands/idea/index.js';
+import { registerObjectiveCommands } from './commands/objective/index.js';
 import { initHumanSummary, runInit, type InitOptions } from './commands/init.js';
 
 function readPackageVersion(): string {
@@ -132,8 +133,9 @@ function buildProgram(opts: BuildProgramOptions): Command {
     exit: setExitCode,
   };
   registerIdeaCommands(program, { globals: typedGlobals });
+  registerObjectiveCommands(program, { globals: typedGlobals });
   for (const type of ARTIFACT_TYPES) {
-    if (type === 'idea') continue;
+    if (type === 'idea' || type === 'objective') continue;
     registerNotImplementedType(program, type, typedGlobals);
   }
 
