@@ -171,13 +171,19 @@ export async function runIdeaCreate(
   // write. The clean approach is to start with the canonical template and
   // then issue a body-replace update for file/stdin sources.
 
+  // Required sections scaffold with a placeholder TODO marker; optional
+  // sections stay empty. Without a placeholder, the parser treats
+  // empty-but-present as canonical and `create → get` reports zero
+  // drift on a structurally-incomplete artifact, hiding the fact that
+  // the author never filled it in.
+  const REQUIRED_PLACEHOLDER = '_TODO: fill in_';
   const emptyBody = {
     sections: IdeaBodyTemplate.sections.map((s) => ({
       heading: s.name,
       slug: s.slug,
       status: 'canonical' as const,
       canonicalOrder: s.order,
-      content: s.required ? '' : '',
+      content: s.required ? REQUIRED_PLACEHOLDER : '',
     })),
     warnings: [] as DriftWarning[],
   };

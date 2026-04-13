@@ -54,6 +54,19 @@ describe('etak idea create (built binary e2e)', () => {
     expect(content).toContain('status: draft');
     expect(content).toContain('## Description');
     expect(content).toContain('## Why This Could Work');
+    // Required sections scaffold with a TODO placeholder so round-trip
+    // through the parser surfaces nothing (canonical+placeholder) but a
+    // human-reader can see where content is missing.
+    const descIdx = content.indexOf('## Description');
+    const whyIdx = content.indexOf('## Why This Could Work');
+    const rationaleIdx = content.indexOf('## Strategic Rationale');
+    const questionsIdx = content.indexOf('## Open Questions');
+    // Required: Description and Why This Could Work carry the placeholder.
+    expect(content.slice(descIdx, rationaleIdx)).toContain('_TODO: fill in_');
+    expect(content.slice(whyIdx, questionsIdx)).toContain('_TODO: fill in_');
+    // Optional: Strategic Rationale and Open Questions do NOT carry it.
+    expect(content.slice(rationaleIdx, whyIdx)).not.toContain('_TODO: fill in_');
+    expect(content.slice(questionsIdx)).not.toContain('_TODO: fill in_');
   });
 
   it('accepts an explicit --slug override', () => {
