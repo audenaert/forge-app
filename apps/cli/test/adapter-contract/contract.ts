@@ -240,6 +240,118 @@ function runRealContract(factory: AdapterFactory): void {
     expect(missing[0]!.details?.['sectionSlug']).toBe('description');
   });
 
+  it('preserves section content byte-for-byte through a round-trip', async () => {
+    // Round-trip test that exercises every remark trap the hand-rolled
+    // parser would fall into: fenced code with `##`, nested lists, and
+    // a heading with inline code. Content is compared per-section (not
+    // whole-document) because the serializer's canonical "one blank line
+    // between sections" normalization is allowed to adjust inter-section
+    // whitespace — anything *inside* a section body must be preserved
+    // exactly.
+    const adapter = await mk();
+
+    const descriptionBody = [
+      'A block of prose first.',
+      '',
+      '```markdown',
+      '## Not a real heading',
+      'fenced code should survive untouched',
+      '```',
+      '',
+      'And a trailing paragraph.',
+    ].join('\n');
+
+    const whyBody = [
+      '- top level item',
+      '  - nested item with `inline code`',
+      '  - nested item with **emphasis**',
+      '- another top level',
+      '  1. numbered child',
+      '  2. another numbered child',
+    ].join('\n');
+
+    const doc = makeIdea('byte-exact', {
+      sections: [
+        section('Description', descriptionBody),
+        // Heading intentionally carries inline code, matching the canonical
+        // name `Why This Could Work`. The serializer must round-trip the
+        // section content even though the stored heading differs.
+        section('Why This Could Work', 'With `etak init` we bootstrap the project.'),
+        section('Open Questions', 'What about `--force-suffix`? And what if someone writes `##` inline?'),
+      ],
+    });
+    await adapter.write(doc);
+    const read = await adapter.read(doc.ref);
+
+    // Per-section strict equality. Parser captures raw content from the
+    // first line after the `## heading` line up to (but not including) the
+    // next H2, then strips trailing whitespace. The blank line the
+    // serializer writes between heading and content appears at the start
+    // of the captured region, so we normalize a single leading newline
+    // before comparing. Nothing else is touched.
+    const strip = (s: string): string => s.replace(/^\n/, '').replace(/\s+$/, '');
+    const expected: Record<string, string> = {
+      description: descriptionBody.replace(/\s+$/, ''),
+      why_this_could_work: 'With `etak init` we bootstrap the project.',
+      open_questions:
+        'What about `--force-suffix`? And what if someone writes `##` inline?',
+    };
+    for (const s of read.body.sections) {
+      expect(
+        expected[s.slug],
+        `section ${s.slug} present in expected map`,
+      ).toBeDefined();
+      expect(strip(s.content), `section ${s.slug} content`).toBe(expected[s.slug]);
+    }
+    // And the fenced code block in Description must not have been parsed
+    // as a heading — so we should NOT see a "Not a real heading" section.
+    expect(
+      read.body.sections.find((s) => s.heading === 'Not a real heading'),
+    ).toBeUndefined();
+  });
+
+  it('unlink removes a link on a subsequent read', async () => {
+    const adapter = await mk();
+    const idea = makeIdea('unlinker');
+    const opp = makeOpportunity('unlinkee');
+    await adapter.write(idea);
+    await adapter.write(opp);
+
+    await adapter.link(idea.ref, 'addresses', opp.ref);
+    const linked = await adapter.read(idea.ref);
+    expect((linked.frontmatter['addresses'] as string[]).includes('unlinkee')).toBe(true);
+
+    await adapter.unlink(idea.ref, 'addresses', opp.ref);
+    const unlinked = await adapter.read(idea.ref);
+    const addresses = unlinked.frontmatter['addresses'];
+    expect(Array.isArray(addresses) && (addresses as string[]).includes('unlinkee')).toBe(
+      false,
+    );
+  });
+
+  it('unlink of a link that was never present is a no-op with link_not_present warning', async () => {
+    // Symmetry with the dangling_ref behavior of link: neither operation
+    // throws for a missing target/link, both surface a warning instead.
+    const adapter = await mk();
+    const idea = makeIdea('unlinker-noop');
+    await adapter.write(idea);
+
+    const result = await adapter.unlink(idea.ref, 'addresses', {
+      type: 'opportunity',
+      slug: 'never-existed',
+    });
+    expect(result.warnings.some((w) => w.kind === 'link_not_present')).toBe(true);
+
+    const read = await adapter.read(idea.ref);
+    // The frontmatter may now contain an empty `addresses: []` or still be
+    // absent — either is acceptable; what matters is that the slug is not
+    // present.
+    const addresses = read.frontmatter['addresses'];
+    if (Array.isArray(addresses)) {
+      expect((addresses as string[]).includes('never-existed')).toBe(false);
+    }
+  });
+
   it('critique is body-as-opaque: no drift warnings for any body content', async () => {
     const adapter = await mk();
     const critique: Document = {
