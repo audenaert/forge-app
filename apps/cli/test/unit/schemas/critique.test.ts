@@ -50,21 +50,16 @@ describe('CritiqueFrontmatterSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects a status field — critique has no status', () => {
-    // Zod passthrough would normally allow this, but we still want to lock
-    // the contract: critique schema makes no claim about status because
-    // it has none per schemas.md. The schema should NOT fail on status
-    // (passthrough), but it also must not parse into `status`. This test
-    // documents that behavior.
+  it('passthrough preserves a stray status field — critique has no typed status', () => {
+    // Documents the consequence of `.passthrough()`: an author who writes
+    // `status:` on a critique will not be caught by Zod (critique declares
+    // no `status` field). The drift detector landing in M1-S5 will flag
+    // this via `unknown_frontmatter_field` instead.
     const parsed = CritiqueFrontmatterSchema.parse({
       ...baseCritique,
       status: 'active',
     });
-    // `status` is not a declared field, so it exists only as passthrough.
-    // The important invariant is that the schema does not surface it as a
-    // typed field. Checking the declared-field view:
     expect((parsed as { status?: unknown }).status).toBe('active');
-    // … but nothing in the codebase should rely on it being typed.
   });
 });
 
