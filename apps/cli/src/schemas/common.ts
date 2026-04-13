@@ -6,6 +6,8 @@
 
 import { z } from 'zod';
 
+import type { BodyDocument } from './types.js';
+
 /**
  * Slug regex — kebab-case, must start and end with an alphanumeric.
  * Defined by design.md §5 (Slug generation). The same regex governs slugs
@@ -33,6 +35,27 @@ export const NameSchema = z
  * Typed link field: an array of slugs. Defaults to an empty array when the
  * field is absent from frontmatter, so downstream code never has to
  * distinguish "missing" from "empty".
+ *
+ * **Incremental formalism — design choice.** Several link fields across the
+ * artifact types are *semantically* required (an idea should `addresses` an
+ * opportunity, an assumption should be `assumed_by` an idea, an experiment
+ * should `tests` an assumption, an opportunity should `support` an
+ * objective). These schemas deliberately do **not** enforce non-empty
+ * constraints on those fields. Etak embraces incremental formalism: the
+ * Opportunity Solution Tree is built up over time and authors are free to
+ * sketch a floating artifact today and link it tomorrow as the structure
+ * emerges. Hard refusal at parse time would punish the natural mid-flight
+ * state of discovery work.
+ *
+ * The "gap" — a floating artifact with no upstream link — is not silenced;
+ * it is surfaced as a **drift signal** by the M1-S5 drift detector, which
+ * treats unlinked semantically-required fields as an indicator that the
+ * opportunity space needs further exploration rather than as a validation
+ * error. See `apps/cli/docs/design.md` §3 (drift handling philosophy) for
+ * the full rationale.
+ *
+ * If you find yourself wanting to add a `.refine()` here to forbid empty
+ * arrays, stop and re-read this comment first.
  */
 export const LinkArraySchema = z.array(SlugSchema).default([]);
 
@@ -48,12 +71,7 @@ export const ScalarLinkSchema = SlugSchema.nullable();
  * headings, missing required sections) is the parser's job — this layer only
  * asserts that `body` has the right shape so Zod-validated round-trips can
  * carry a BodyDocument alongside validated frontmatter.
- *
- * Imported lazily via a factory so each per-type schema file can stay
- * decoupled from the BodyDocument type import.
  */
-import type { BodyDocument } from './types.js';
-
 export const BodyDocumentSchema = z.custom<BodyDocument>(
   (val) =>
     typeof val === 'object' &&
