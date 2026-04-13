@@ -66,6 +66,13 @@ export const ExperimentFrontmatterSchema = z
 export type ExperimentFrontmatter = z.infer<typeof ExperimentFrontmatterSchema>;
 
 /**
+ * Known passthrough frontmatter keys. Companion to OPPORTUNITY_KNOWN_EXTRAS
+ * in `opportunity.ts` — see that file for the broader rationale. Experiment
+ * has no known extras today; extend as conventions emerge.
+ */
+export const EXPERIMENT_KNOWN_EXTRAS = [] as const;
+
+/**
  * Experiment body template.
  *
  * @provisional Seeded from schemas.md; no live experiment fixture exists

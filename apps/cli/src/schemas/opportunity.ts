@@ -28,6 +28,16 @@ export const OpportunityFrontmatterSchema = z
 export type OpportunityFrontmatter = z.infer<typeof OpportunityFrontmatterSchema>;
 
 /**
+ * Known passthrough frontmatter keys that the M1-S5 drift detector should
+ * NOT flag as `unknown_frontmatter_field`. Opportunity carries `hmw` — the
+ * canonical "How Might We" question — as a free-form string alongside the
+ * typed fields. It is not modeled in the schema (free text, not a slug or
+ * enum) but it is expected and well-known. Add to this list whenever a new
+ * convention emerges that we want to permit without typing.
+ */
+export const OPPORTUNITY_KNOWN_EXTRAS = ['hmw'] as const;
+
+/**
  * Opportunity body template. Calibrated against
  * `docs/discovery/opportunities/solo-devs-blocked-by-team-tool-overhead.md`.
  * Description and Evidence are required; "Who Experiences This" appears in

@@ -37,6 +37,13 @@ export const IdeaFrontmatterSchema = z
 export type IdeaFrontmatter = z.infer<typeof IdeaFrontmatterSchema>;
 
 /**
+ * Known passthrough frontmatter keys. Companion to OPPORTUNITY_KNOWN_EXTRAS
+ * in `opportunity.ts` — see that file for the broader rationale. Idea has
+ * no known extras today; extend as conventions emerge.
+ */
+export const IDEA_KNOWN_EXTRAS = [] as const;
+
+/**
  * Idea body template. Calibrated against `etak-cli-as-growth-onramp.md` and
  * `graph-backed-artifact-store.md`. "Strategic Rationale" is present in the
  * first and absent in the second, so it is modeled optional — both fixtures

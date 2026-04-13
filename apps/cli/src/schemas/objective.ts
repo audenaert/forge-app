@@ -33,6 +33,13 @@ export const ObjectiveFrontmatterSchema = z
 export type ObjectiveFrontmatter = z.infer<typeof ObjectiveFrontmatterSchema>;
 
 /**
+ * Known passthrough frontmatter keys. Companion to OPPORTUNITY_KNOWN_EXTRAS
+ * in `opportunity.ts` — see that file for the broader rationale. Objective
+ * has no known extras today; extend as conventions emerge.
+ */
+export const OBJECTIVE_KNOWN_EXTRAS = [] as const;
+
+/**
  * Objective body template. Calibrated against
  * `docs/discovery/objectives/grow-etak-via-local-first-plg.md` — Description
  * and Success Criteria are both universally present and mandatory, Context

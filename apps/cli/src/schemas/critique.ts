@@ -32,6 +32,13 @@ export const CritiqueFrontmatterSchema = z
 export type CritiqueFrontmatter = z.infer<typeof CritiqueFrontmatterSchema>;
 
 /**
+ * Known passthrough frontmatter keys. Companion to OPPORTUNITY_KNOWN_EXTRAS
+ * in `opportunity.ts` — see that file for the broader rationale. Critique
+ * has no known extras today; extend as conventions emerge.
+ */
+export const CRITIQUE_KNOWN_EXTRAS = [] as const;
+
+/**
  * Critique body template — **opaque**, not sectioned. Declared explicitly
  * so consumers can branch on `kind` rather than checking for the presence
  * of a template. The parser still produces a `BodyDocument` for uniformity,
