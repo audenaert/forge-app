@@ -6,6 +6,9 @@
 // critique; if opportunity or a future type needs them, extract pass 2
 // will lift them.
 
+import type { CommandContext } from '../../context.js';
+import type { ArtifactType } from '../../schemas/index.js';
+import { ARTIFACT_TYPES } from '../../schemas/index.js';
 import type { BodyDocument, DriftWarning } from '../../schemas/types.js';
 
 /**
@@ -56,4 +59,28 @@ export function todayIsoDate(date: Date = new Date()): string {
   const m = String(date.getUTCMonth() + 1).padStart(2, '0');
   const d = String(date.getUTCDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+/**
+ * Probe every known artifact type for a given slug. Returns the first
+ * type whose adapter read succeeds, or `null` if nothing resolves.
+ *
+ * Used by critique's polymorphic `target` and `artifacts_created` fields,
+ * which are not bound to a specific artifact type — create uses the
+ * boolean `!== null` form for dangling-ref detection, while link needs
+ * the resolved type to build an accurate `ArtifactRef` for `adapter.link()`.
+ */
+export async function resolveArtifactType(
+  ctx: CommandContext,
+  slug: string,
+): Promise<ArtifactType | null> {
+  for (const type of ARTIFACT_TYPES) {
+    try {
+      await ctx.adapter.read({ type, slug });
+      return type;
+    } catch {
+      // Not this type — continue probing.
+    }
+  }
+  return null;
 }

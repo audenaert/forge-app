@@ -26,14 +26,14 @@ import type { Command } from 'commander';
 
 import type { ChassisGlobals } from '../../cli-runtime.js';
 import type { CommandContext, CommandContextFactory } from '../../context.js';
-import type { ArtifactRef, ArtifactType, DriftWarning } from '../../schemas/index.js';
-import { ARTIFACT_TYPES } from '../../schemas/index.js';
+import type { ArtifactRef, DriftWarning } from '../../schemas/index.js';
 import { runCommand } from '../../errors/boundary.js';
 import { envelopeSuccess } from '../../output/envelope.js';
 import type { Envelope } from '../../output/envelope.js';
 import { ValidationError } from '../../adapters/errors.js';
 
 import { collectStrings } from '../shared.js';
+import { resolveArtifactType } from './shared.js';
 
 export interface CritiqueLinkOptions {
   target?: string;
@@ -231,25 +231,6 @@ export async function runCritiqueLink(
   }
 
   return envelopeSuccess('critique link', { ref, added, removed }, warnings);
-}
-
-/**
- * Probe every known artifact type for a given slug. Returns the first
- * type whose adapter read succeeds, or `null` if nothing resolves.
- */
-async function resolveArtifactType(
-  ctx: CommandContext,
-  slug: string,
-): Promise<ArtifactType | null> {
-  for (const type of ARTIFACT_TYPES) {
-    try {
-      await ctx.adapter.read({ type, slug });
-      return type;
-    } catch {
-      // Not this type — continue.
-    }
-  }
-  return null;
 }
 
 /**

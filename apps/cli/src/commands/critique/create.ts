@@ -36,7 +36,7 @@ import { CritiqueFrontmatterSchema } from '../../schemas/index.js';
 import { ValidationError } from '../../adapters/errors.js';
 
 import { collectStrings, deriveSlug, readFileUtf8, readStdin } from '../shared.js';
-import { scaffoldOpaqueBody, todayIsoDate } from './shared.js';
+import { resolveArtifactType, scaffoldOpaqueBody, todayIsoDate } from './shared.js';
 
 export interface CritiqueCreateOptions {
   name?: string;
@@ -212,7 +212,7 @@ export async function runCritiqueCreate(
   // against every known type until one matches. This mirrors the
   // "probe under a best-guess type" fallback idea/create uses for
   // delivered_by.
-  if (!(await targetExistsAnyType(ctx, frontmatter['target'] as string))) {
+  if ((await resolveArtifactType(ctx, frontmatter['target'] as string)) === null) {
     warnings.push({
       kind: 'dangling_ref',
       severity: 'warning',
@@ -222,7 +222,7 @@ export async function runCritiqueCreate(
     });
   }
   for (const artifactSlug of frontmatter['artifacts_created'] as string[]) {
-    if (!(await targetExistsAnyType(ctx, artifactSlug))) {
+    if ((await resolveArtifactType(ctx, artifactSlug)) === null) {
       warnings.push({
         kind: 'dangling_ref',
         severity: 'warning',
@@ -249,24 +249,3 @@ export async function runCritiqueCreate(
   return envelopeSuccess('critique create', result, warnings);
 }
 
-/**
- * Probe every known artifact type for a given slug. Returns true on the
- * first hit. Used for dangling-ref detection on critique's polymorphic
- * `target` and `artifacts_created` fields, which are not bound to a
- * specific artifact type.
- */
-async function targetExistsAnyType(
-  ctx: CommandContext,
-  slug: string,
-): Promise<boolean> {
-  const { ARTIFACT_TYPES } = await import('../../schemas/index.js');
-  for (const type of ARTIFACT_TYPES) {
-    try {
-      await ctx.adapter.read({ type, slug });
-      return true;
-    } catch {
-      // Not this type — continue probing.
-    }
-  }
-  return false;
-}
