@@ -23,8 +23,8 @@ describe('<App />', () => {
       screen.getByRole('heading', { name: /discovery explorer/i, level: 2 }),
     ).toBeInTheDocument();
 
-    // And the Dashboard nav link is marked as the active route.
-    const dashboardLink = screen.getByRole('link', { name: 'Dashboard' });
-    expect(dashboardLink).toHaveAttribute('aria-current', 'page');
+    // And the Discover nav link is marked as the active route.
+    const discoverLink = screen.getByRole('link', { name: 'Discover' });
+    expect(discoverLink).toHaveAttribute('aria-current', 'page');
   });
 });

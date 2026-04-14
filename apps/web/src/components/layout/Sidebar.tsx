@@ -5,8 +5,8 @@ interface NavItem {
   href: string;
   /**
    * If true, the item is active only when the pathname exactly matches.
-   * Defaults to false (prefix match) so `/tree/objective/123` still
-   * highlights the Tree link.
+   * Defaults to false (prefix match) so `/gaps/untested` still
+   * highlights the Gaps link.
    */
   exact?: boolean;
 }
@@ -14,16 +14,17 @@ interface NavItem {
 /*
  * Navigation entries for the discovery explorer shell.
  *
- * Dashboard is the only route that currently exists; Tree and Gaps are
- * placeholders that will become real routes in later M1b stories. We
- * render plain anchors rather than typed TanStack Router `Link`s because
- * typed routing would reject the not-yet-registered targets. Migrating
- * to `Link` is a one-line change per item when those routes land.
+ * M1a scope is deliberately minimal: Discover is the root of the
+ * discovery explorer (currently a placeholder EmptyState), and Gaps
+ * is the planned untested-assumptions view. Both targets become real
+ * routes in later M1b stories. We render plain anchors rather than
+ * typed TanStack Router `Link`s because typed routing would reject
+ * the not-yet-registered targets. Migrating to `Link` is a one-line
+ * change per item when those routes land.
  */
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', href: '/', exact: true },
-  { label: 'Tree', href: '/tree' },
-  { label: 'Gaps', href: '/assumptions' },
+  { label: 'Discover', href: '/', exact: true },
+  { label: 'Gaps', href: '/gaps' },
 ];
 
 interface SidebarProps {
