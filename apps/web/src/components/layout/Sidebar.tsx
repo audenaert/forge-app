@@ -5,26 +5,22 @@ interface NavItem {
   href: string;
   /**
    * If true, the item is active only when the pathname exactly matches.
-   * Defaults to false (prefix match) so `/gaps/untested` still
-   * highlights the Gaps link.
+   * Defaults to false (prefix match) so `/tree/objective/123` still
+   * highlights the Tree link.
    */
   exact?: boolean;
 }
 
 /*
- * Navigation entries for the discovery explorer shell.
- *
- * M1a scope is deliberately minimal: Discover is the root of the
- * discovery explorer (currently a placeholder EmptyState), and Gaps
- * is the planned untested-assumptions view. Both targets become real
- * routes in later M1b stories. We render plain anchors rather than
- * typed TanStack Router `Link`s because typed routing would reject
- * the not-yet-registered targets. Migrating to `Link` is a one-line
- * change per item when those routes land.
+ * Navigation entries for the discovery explorer shell. Rendered as plain
+ * anchors rather than typed TanStack Router `Link`s so that not-yet-
+ * registered route targets don't fail type-checking. Migrating to `Link`
+ * is a one-line change per item when those routes land.
  */
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Discover', href: '/', exact: true },
-  { label: 'Gaps', href: '/gaps' },
+  { label: 'Dashboard', href: '/', exact: true },
+  { label: 'Tree', href: '/tree' },
+  { label: 'Gaps', href: '/assumptions' },
 ];
 
 interface SidebarProps {
@@ -59,22 +55,8 @@ export function Sidebar({ currentPath }: SidebarProps) {
               <a
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
-                className="block rounded-sm px-3 py-2 text-sm"
-                style={{
-                  // Active: ocean text + subtle ocean background tint (8%
-                  // opacity per the design system "Navigation" section).
-                  // Inactive: secondary text weight — gravitationally
-                  // lighter than page anchors.
-                  color: active
-                    ? 'var(--color-ocean)'
-                    : 'var(--text-secondary)',
-                  backgroundColor: active
-                    ? 'color-mix(in srgb, var(--color-ocean) 8%, transparent)'
-                    : 'transparent',
-                  fontWeight: active ? 600 : 500,
-                  transition:
-                    'background-color 120ms cubic-bezier(0.16, 1, 0.3, 1), color 120ms cubic-bezier(0.16, 1, 0.3, 1)',
-                }}
+                data-active={active ? 'true' : undefined}
+                className="etak-nav-link block rounded-sm px-3 py-2 text-sm"
               >
                 {item.label}
               </a>

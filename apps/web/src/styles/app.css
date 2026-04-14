@@ -92,6 +92,39 @@ body {
 }
 
 /*
+ * Primary sidebar navigation links. Active state is driven by the
+ * `data-active` attribute (set by <Sidebar />) so `:hover` and the active
+ * state compose cleanly without inline styles. Colors and tints follow
+ * the design system "Navigation" section: ocean text on an 8%-opacity
+ * ocean background tint for active; hover nudges inactive links toward
+ * primary text with a 4%-opacity deep tint so the affordance is visible
+ * without shouting.
+ */
+.etak-nav-link {
+  color: var(--text-secondary);
+  background-color: transparent;
+  font-weight: 500;
+  transition:
+    background-color 120ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 120ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.etak-nav-link:hover {
+  color: var(--text-primary);
+  background-color: color-mix(in srgb, var(--color-deep) 4%, transparent);
+}
+
+.etak-nav-link[data-active='true'] {
+  color: var(--color-ocean);
+  background-color: color-mix(in srgb, var(--color-ocean) 8%, transparent);
+  font-weight: 600;
+}
+
+.etak-nav-link[data-active='true']:hover {
+  background-color: color-mix(in srgb, var(--color-ocean) 12%, transparent);
+}
+
+/*
  * Respect prefers-reduced-motion. Per the design system, micro-interactions
  * reduce to instant when the user prefers reduced motion. We zero out
  * transitions and animations but leave opacity-only transitions available

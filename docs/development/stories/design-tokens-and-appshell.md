@@ -13,7 +13,7 @@ acceptance_criteria:
   - "Opacity-derived border tokens (--border-subtle/default/emphasis/focus) and text hierarchy tokens (--text-primary/secondary/tertiary/muted) are defined on :root using color-mix()"
   - "Body base font-size is 14px; font-family is a system-font stack placeholder (e.g., ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, ...) — real typeface selection is deferred"
   - "A <AppShell> component in apps/web/src/components/layout/AppShell.tsx renders a two-region layout: fixed-width sidebar on the left, main content area on the right, separated by --border-default"
-  - "A <Sidebar> component renders navigation links (Discover, Gaps) with active-state styling using ocean text + subtle background tint; hover states follow the design system"
+  - "A <Sidebar> component renders navigation links (Dashboard, Tree, Gaps) with active-state styling using ocean text + subtle background tint; hover states follow the design system"
   - "An <EmptyState> component exists in apps/web/src/components/layout/EmptyState.tsx and accepts title + description + optional action slots"
   - "prefers-reduced-motion is respected: a global rule in app.css reduces transitions to instant when the user prefers reduced motion"
   - "Sidebar nav uses <nav> with role and aria-current on the active link; keyboard focus is visible via --border-focus outline"
