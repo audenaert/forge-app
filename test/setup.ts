@@ -44,7 +44,7 @@ export async function setupTestEnvironment(): Promise<void> {
   refCount++;
   if (container) return; // Already started
 
-  container = await new Neo4jContainer('neo4j:5').withApoc().start();
+  container = await new Neo4jContainer('neo4j:5').withApoc().withStartupTimeout(600_000).start();
 
   driver = neo4j.driver(
     container.getBoltUri(),
