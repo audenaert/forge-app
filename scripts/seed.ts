@@ -30,6 +30,8 @@
  *   VITE_API_KEY=seed-dev-key
  * in apps/web/.env.local and starting the API with `npm run dev --workspace=apps/api`.
  */
+import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 import { createDriver, verifyConnection } from '@forge-workspace/graph';
 import { hashApiKey } from '../apps/api/src/auth.js';
 import type { Driver, Session } from 'neo4j-driver';
@@ -763,8 +765,9 @@ _Note: this experiment is not yet wired up to any specific assumption in the gra
 // ---------------------------------------------------------------------------
 
 async function deleteSeedDomain(session: Session): Promise<void> {
-  // Delete every artifact BELONGS_TO the seed domain (cascading detach),
-  // then delete the domain + organization + user + any dangling seed nodes.
+  // Delete every artifact BELONGS_TO the seed domain (cascading detach).
+  // This is already scoped by domain slug, so sibling domains under the
+  // same organization are untouched.
   await session.run(
     `
     MATCH (n)-[:BELONGS_TO]->(d:Domain {slug: $slug})
@@ -772,14 +775,30 @@ async function deleteSeedDomain(session: Session): Promise<void> {
     `,
     { slug: SEED_DOMAIN_SLUG }
   );
+  // Delete the seed domain itself and any users that are members only of
+  // this domain. We do NOT unconditionally delete the Organization — if a
+  // future fixture or test attaches another Domain to `seed-org`, blowing
+  // away the org would orphan it. Instead, delete the org only when this
+  // is its last remaining domain.
   await session.run(
     `
     MATCH (d:Domain {slug: $slug})
     OPTIONAL MATCH (u:User)-[:MEMBER_OF]->(d)
-    OPTIONAL MATCH (d)-[:BELONGS_TO_ORG]->(o:Organization {slug: $orgSlug})
-    DETACH DELETE u, d, o
+    WHERE NOT EXISTS {
+      MATCH (u)-[:MEMBER_OF]->(other:Domain)
+      WHERE other.slug <> $slug
+    }
+    DETACH DELETE u, d
     `,
-    { slug: SEED_DOMAIN_SLUG, orgSlug: SEED_ORG_SLUG }
+    { slug: SEED_DOMAIN_SLUG }
+  );
+  await session.run(
+    `
+    MATCH (o:Organization {slug: $orgSlug})
+    WHERE NOT EXISTS { MATCH (:Domain)-[:BELONGS_TO_ORG]->(o) }
+    DETACH DELETE o
+    `,
+    { orgSlug: SEED_ORG_SLUG }
   );
 }
 
@@ -1027,11 +1046,13 @@ async function main(): Promise<void> {
 }
 
 // Only invoke main() when run as a script — allows the integration test
-// to import runSeed without triggering a second execution. We detect the
-// "run as script" case by checking whether this file is the entry point
-// in process.argv, which works in both ESM and CJS contexts.
-const entryPoint = process.argv[1] ?? '';
-const isMain = entryPoint.endsWith('seed.ts') || entryPoint.endsWith('seed.js');
+// to import runSeed without triggering a second execution. Compare the
+// resolved path of this module against process.argv[1] using the standard
+// ESM idiom, which avoids false positives for any path that merely ends
+// with "seed.ts"/"seed.js".
+const isMain =
+  process.argv[1] !== undefined &&
+  fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 if (isMain) {
   main().catch((err: unknown) => {
     console.error('Seed failed:', err);

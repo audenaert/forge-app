@@ -140,8 +140,19 @@ describe('seed script', () => {
     const session = driver.session();
     try {
       // Every artifact labelled Objective/Opportunity/Idea/Assumption/Experiment
-      // in the seed domain should have a non-empty body with at least one
-      // markdown heading and at least 200 chars.
+      // in the seed domain must have a non-empty body. We then structurally
+      // verify the Idea bodies — picked as a representative type — contain
+      // the markdown features the UI actually renders:
+      //
+      //   - every Idea body has at least one markdown heading
+      //   - the Idea corpus collectively contains at least one bullet list item
+      //   - the Idea corpus collectively contains at least one inline
+      //     formatting marker (**bold**, _italics_, or `code`)
+      //
+      // A body stripped of these features should fail this test. Asserting
+      // the same shape on every artifact type is noisy (assumption/experiment
+      // bodies are legitimately prose-heavy), so we scope the structural
+      // checks to Ideas and leave a baseline non-empty assertion on the rest.
       const result = await session.run(
         `
         MATCH (n)-[:BELONGS_TO]->(:Domain {slug: $slug})
@@ -151,12 +162,34 @@ describe('seed script', () => {
         { slug: SEED_DOMAIN_SLUG }
       );
       expect(result.records.length).toBeGreaterThan(0);
+
+      const headingRe = /^#{1,6} /m;
+      const bulletRe = /^[-*+] /m;
+      // Inline: **bold**, _italics_, or `code`. We intentionally avoid a
+      // single-asterisk italics pattern because it collides with bullets.
+      const inlineRe = /\*\*[^*]+\*\*|_[^_]+_|`[^`]+`/;
+
+      const ideaBodies: string[] = [];
       for (const record of result.records) {
+        const labels = record.get('labels') as string[];
         const name = record.get('name') as string;
         const body = record.get('body') as string | null;
         expect(body, `artifact "${name}" has no body`).toBeTruthy();
-        expect(body!.length, `artifact "${name}" body is too short`).toBeGreaterThan(200);
+        if (labels.includes('Idea')) {
+          expect(body, `idea "${name}" body has no markdown heading`).toMatch(headingRe);
+          ideaBodies.push(body!);
+        }
       }
+
+      expect(ideaBodies.length, 'no Idea artifacts found in seed').toBeGreaterThan(0);
+      expect(
+        ideaBodies.some((b) => bulletRe.test(b)),
+        'no Idea body contains a bullet list item'
+      ).toBe(true);
+      expect(
+        ideaBodies.some((b) => inlineRe.test(b)),
+        'no Idea body contains inline formatting (bold/italic/code)'
+      ).toBe(true);
     } finally {
       await session.close();
     }
