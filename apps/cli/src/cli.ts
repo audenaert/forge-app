@@ -46,6 +46,7 @@ import { registerNotImplementedType } from './commands/not-implemented.js';
 import { registerIdeaCommands } from './commands/idea/index.js';
 import { registerObjectiveCommands } from './commands/objective/index.js';
 import { registerOpportunityCommands } from './commands/opportunity/index.js';
+import { registerCritiqueCommands } from './commands/critique/index.js';
 import { initHumanSummary, runInit, type InitOptions } from './commands/init.js';
 
 function readPackageVersion(): string {
@@ -136,8 +137,15 @@ function buildProgram(opts: BuildProgramOptions): Command {
   registerIdeaCommands(program, { globals: typedGlobals });
   registerObjectiveCommands(program, { globals: typedGlobals });
   registerOpportunityCommands(program, { globals: typedGlobals });
+  registerCritiqueCommands(program, { globals: typedGlobals });
   for (const type of ARTIFACT_TYPES) {
-    if (type === 'idea' || type === 'objective' || type === 'opportunity') continue;
+    if (
+      type === 'idea' ||
+      type === 'objective' ||
+      type === 'opportunity' ||
+      type === 'critique'
+    )
+      continue;
     registerNotImplementedType(program, type, typedGlobals);
   }
 
