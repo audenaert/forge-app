@@ -40,14 +40,25 @@ describe('<Sidebar />', () => {
     expect(screen.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute(
       'aria-current',
     );
+    // Only one link should be active at a time.
+    expect(screen.getByRole('link', { name: 'Gaps' })).not.toHaveAttribute(
+      'aria-current',
+    );
   });
 
-  it('marks the Gaps link active when on /assumptions', () => {
-    render(<Sidebar currentPath="/assumptions" />);
+  it('marks only the Gaps link active when on a /assumptions/* path', () => {
+    render(<Sidebar currentPath="/assumptions/untested" />);
 
     expect(screen.getByRole('link', { name: 'Gaps' })).toHaveAttribute(
       'aria-current',
       'page',
+    );
+    // Dashboard and Tree should NOT be active on a Gaps-prefixed route.
+    expect(screen.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute(
+      'aria-current',
+    );
+    expect(screen.getByRole('link', { name: 'Tree' })).not.toHaveAttribute(
+      'aria-current',
     );
   });
 });
