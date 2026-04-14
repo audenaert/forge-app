@@ -57,7 +57,7 @@ describe('Custom traversal queries', () => {
       await connectToDomain('Assumption', a.id, slug);
     }
 
-    await executeGraphQL(`
+    const { data: expData } = await executeGraphQL(`
       mutation {
         createExperiments(input: [
           { name: "Exp 1", status: COMPLETE, method: USER_INTERVIEW, result: VALIDATED, tests: { connect: [{ where: { node: { id: { eq: "${a1.id}" } } } }] } },
@@ -65,6 +65,9 @@ describe('Custom traversal queries', () => {
         ]) { experiments { id name } }
       }
     `);
+    for (const e of expData!.createExperiments.experiments) {
+      await connectToDomain('Experiment', e.id, slug);
+    }
 
     return { oppId };
   }
@@ -126,6 +129,79 @@ describe('Custom traversal queries', () => {
         query { opportunitySubgraph(opportunityId: "${oppId}", domainSlug: "wrong-domain") { id } }
       `);
       expect(data!.opportunitySubgraph).toBeNull();
+    });
+
+    it('should not include cross-domain ideas, assumptions, or experiments nested under the opportunity', async () => {
+      // Opportunity lives in domainSlug. Dangling off of it via cross-domain
+      // edges: an Idea in otherSlug ADDRESSES the opportunity, an Assumption
+      // in otherSlug is ASSUMED_BY an in-domain idea, and an Experiment in
+      // otherSlug TESTS an in-domain assumption. None of them should surface
+      // in the D1 opportunitySubgraph result.
+      const otherSlug = testDomain();
+      await seedDomain(otherSlug);
+
+      const { data: oppData } = await executeGraphQL(`
+        mutation { createOpportunities(input: [{ name: "Scoped Opp", status: ACTIVE, hmw: "?" }]) { opportunities { id } } }
+      `);
+      const oppId = oppData!.createOpportunities.opportunities[0].id;
+      await connectToDomain('Opportunity', oppId, domainSlug);
+
+      // In-domain idea + assumption (so there IS legitimate nested content).
+      const { data: inIdeaData } = await executeGraphQL(`
+        mutation { createIdeas(input: [{ name: "In-Domain Idea", status: DRAFT, addresses: { connect: [{ where: { node: { id: { eq: "${oppId}" } } } }] } }]) { ideas { id } } }
+      `);
+      const inIdeaId = inIdeaData!.createIdeas.ideas[0].id;
+      await connectToDomain('Idea', inIdeaId, domainSlug);
+
+      const { data: inAsmData } = await executeGraphQL(`
+        mutation { createAssumptions(input: [{ name: "In-Domain Asm", status: UNTESTED, importance: HIGH, evidence: LOW, assumedBy: { connect: [{ where: { node: { id: { eq: "${inIdeaId}" } } } }] } }]) { assumptions { id } } }
+      `);
+      const inAsmId = inAsmData!.createAssumptions.assumptions[0].id;
+      await connectToDomain('Assumption', inAsmId, domainSlug);
+
+      // Cross-domain idea ADDRESSES the in-domain opportunity.
+      const { data: xIdeaData } = await executeGraphQL(`
+        mutation { createIdeas(input: [{ name: "Cross Idea", status: DRAFT, addresses: { connect: [{ where: { node: { id: { eq: "${oppId}" } } } }] } }]) { ideas { id } } }
+      `);
+      await connectToDomain('Idea', xIdeaData!.createIdeas.ideas[0].id, otherSlug);
+
+      // Cross-domain assumption ASSUMED_BY the in-domain idea.
+      const { data: xAsmData } = await executeGraphQL(`
+        mutation { createAssumptions(input: [{ name: "Cross Asm", status: UNTESTED, importance: HIGH, evidence: LOW, assumedBy: { connect: [{ where: { node: { id: { eq: "${inIdeaId}" } } } }] } }]) { assumptions { id } } }
+      `);
+      await connectToDomain('Assumption', xAsmData!.createAssumptions.assumptions[0].id, otherSlug);
+
+      // Cross-domain experiment TESTS the in-domain assumption.
+      const { data: xExpData } = await executeGraphQL(`
+        mutation { createExperiments(input: [{ name: "Cross Exp", status: PLANNED, method: USER_INTERVIEW, tests: { connect: [{ where: { node: { id: { eq: "${inAsmId}" } } } }] } }]) { experiments { id } } }
+      `);
+      await connectToDomain('Experiment', xExpData!.createExperiments.experiments[0].id, otherSlug);
+
+      const { data, errors } = await executeGraphQL(`
+        query {
+          opportunitySubgraph(opportunityId: "${oppId}", domainSlug: "${domainSlug}") {
+            id name
+            ideas {
+              id name
+              assumptions {
+                id name
+                experiments { id name }
+              }
+            }
+          }
+        }
+      `);
+      expect(errors).toBeUndefined();
+      const sub = data!.opportunitySubgraph;
+      expect(sub).not.toBeNull();
+      // Only the in-domain idea should be present.
+      expect(sub.ideas).toHaveLength(1);
+      expect(sub.ideas[0].name).toBe('In-Domain Idea');
+      // Only the in-domain assumption — the cross-domain one must be filtered out.
+      expect(sub.ideas[0].assumptions).toHaveLength(1);
+      expect(sub.ideas[0].assumptions[0].name).toBe('In-Domain Asm');
+      // The cross-domain experiment must not appear.
+      expect(sub.ideas[0].assumptions[0].experiments).toHaveLength(0);
     });
   });
 
@@ -218,18 +294,22 @@ describe('Custom traversal queries', () => {
 
     it('should collapse multiple parent ideas to one row per assumption (first-parent semantics)', async () => {
       // Create two ideas, both in the queried domain. The assumption is linked to both.
-      // The result should contain ONE row for the assumption, not two.
-      const { data: ideaData } = await executeGraphQL(`
-        mutation {
-          createIdeas(input: [
-            { name: "Idea Early", status: DRAFT },
-            { name: "Idea Late", status: EXPLORING }
-          ]) { ideas { id name } }
-        }
+      // The result should contain ONE row for the assumption, not two, and the
+      // chosen parent should be the earliest-created idea (strict equality — a
+      // regression inverting sort order must fail this test).
+      const { data: earlyData } = await executeGraphQL(`
+        mutation { createIdeas(input: [{ name: "Idea Early", status: DRAFT }]) { ideas { id name } } }
       `);
-      const ideaEarly = ideaData!.createIdeas.ideas.find((i: { name: string }) => i.name === 'Idea Early');
-      const ideaLate = ideaData!.createIdeas.ideas.find((i: { name: string }) => i.name === 'Idea Late');
+      const ideaEarly = earlyData!.createIdeas.ideas[0];
       await connectToDomain('Idea', ideaEarly.id, domainSlug);
+
+      // Deterministic gap so createdAt values cannot collide at ms resolution.
+      await new Promise((r) => setTimeout(r, 10));
+
+      const { data: lateData } = await executeGraphQL(`
+        mutation { createIdeas(input: [{ name: "Idea Late", status: EXPLORING }]) { ideas { id name } } }
+      `);
+      const ideaLate = lateData!.createIdeas.ideas[0];
       await connectToDomain('Idea', ideaLate.id, domainSlug);
 
       const { data: aData } = await executeGraphQL(`
@@ -251,15 +331,19 @@ describe('Custom traversal queries', () => {
       const rows = data!.untestedAssumptions.filter((a: { name: string }) => a.name === 'Shared Assumption');
       expect(rows).toHaveLength(1);
       expect(rows[0].parentIdea).not.toBeNull();
-      // First-parent = earliest createdAt. ideaEarly was created first in the same batch,
-      // so we expect its id. (If tie-broken by id, the test still asserts one of the two is present.)
-      expect([ideaEarly.id, ideaLate.id]).toContain(rows[0].parentIdea.id);
+      // Strict equality: first-parent = earliest-created idea, so must be ideaEarly.
+      expect(rows[0].parentIdea.id).toBe(ideaEarly.id);
+      expect(rows[0].parentIdea.name).toBe('Idea Early');
     });
 
-    it('should not include assumptions whose parent idea is in a different domain', async () => {
-      // Assumption lives in the queried domain, parent idea lives in a DIFFERENT domain.
-      // Behavior: the assumption should still surface (it is untested and in-domain),
-      // but parentIdea should be null because the parent is filtered out by domain scoping.
+    it('should exclude an assumption whose only parent idea is in a different domain', async () => {
+      // Assumption lives in the queried domain, but its ONLY parent idea lives
+      // in a different domain. Cross-domain edges are invisible on read, so the
+      // assumption is treated as if it has no parent idea at all... BUT it is
+      // not genuinely unrooted either — it has a (cross-domain) edge that the
+      // product invariant says we should pretend doesn't exist. The reviewer
+      // decided this case should be filtered out entirely to avoid leaking the
+      // existence of cross-domain parents across the domain boundary.
       const otherSlug = testDomain();
       await seedDomain(otherSlug);
 
@@ -282,16 +366,57 @@ describe('Custom traversal queries', () => {
       const { data } = await executeGraphQL(`
         query { untestedAssumptions(domainSlug: "${domainSlug}") { name parentIdea { id name } } }
       `);
-      const cross = data!.untestedAssumptions.find((a: { name: string }) => a.name === 'Cross');
-      expect(cross).toBeDefined();
-      expect(cross.parentIdea).toBeNull();
+      expect(data!.untestedAssumptions.find((a: { name: string }) => a.name === 'Cross')).toBeUndefined();
 
-      // Also: querying untestedAssumptions for otherSlug should NOT return "Cross" because
-      // the assumption itself belongs to `domainSlug`.
+      // Querying untestedAssumptions for otherSlug should also NOT return "Cross"
+      // because the assumption itself belongs to `domainSlug`, not `otherSlug`.
       const { data: otherData } = await executeGraphQL(`
         query { untestedAssumptions(domainSlug: "${otherSlug}") { name } }
       `);
       expect(otherData!.untestedAssumptions.find((a: { name: string }) => a.name === 'Cross')).toBeUndefined();
+    });
+
+    it('should include an assumption with a mix of in-domain and cross-domain parents, picking the in-domain one', async () => {
+      // Assumption in D1 with two ASSUMED_BY edges: one to an idea in D1, one
+      // to an idea in D2. The in-domain parent is visible; the cross-domain
+      // parent is invisible. Result: the assumption appears with the D1 idea
+      // as parentIdea.
+      const otherSlug = testDomain();
+      await seedDomain(otherSlug);
+
+      const { data: inDomainIdeaData } = await executeGraphQL(`
+        mutation { createIdeas(input: [{ name: "In-Domain Parent", status: DRAFT }]) { ideas { id } } }
+      `);
+      const inDomainIdeaId = inDomainIdeaData!.createIdeas.ideas[0].id;
+      await connectToDomain('Idea', inDomainIdeaId, domainSlug);
+
+      const { data: crossIdeaData } = await executeGraphQL(`
+        mutation { createIdeas(input: [{ name: "Cross-Domain Parent", status: DRAFT }]) { ideas { id } } }
+      `);
+      const crossIdeaId = crossIdeaData!.createIdeas.ideas[0].id;
+      await connectToDomain('Idea', crossIdeaId, otherSlug);
+
+      const { data: aData } = await executeGraphQL(`
+        mutation {
+          createAssumptions(input: [{
+            name: "Mixed", status: UNTESTED, importance: HIGH, evidence: LOW,
+            assumedBy: { connect: [
+              { where: { node: { id: { eq: "${inDomainIdeaId}" } } } },
+              { where: { node: { id: { eq: "${crossIdeaId}" } } } }
+            ] }
+          }]) { assumptions { id } }
+        }
+      `);
+      await connectToDomain('Assumption', aData!.createAssumptions.assumptions[0].id, domainSlug);
+
+      const { data } = await executeGraphQL(`
+        query { untestedAssumptions(domainSlug: "${domainSlug}") { name parentIdea { id name } } }
+      `);
+      const mixed = data!.untestedAssumptions.find((a: { name: string }) => a.name === 'Mixed');
+      expect(mixed).toBeDefined();
+      expect(mixed.parentIdea).not.toBeNull();
+      expect(mixed.parentIdea.id).toBe(inDomainIdeaId);
+      expect(mixed.parentIdea.name).toBe('In-Domain Parent');
     });
   });
 
@@ -453,6 +578,84 @@ describe('Custom traversal queries', () => {
       `);
       expect(data!.objectiveSubgraph.opportunities).toHaveLength(0);
     });
+
+    it('should return a partially populated tree with empty arrays for empty branches', async () => {
+      // 1 Objective
+      //   Opp A -> Idea A1 (with assumption, no experiments) and Idea A2 (no assumptions)
+      //   Opp B -> no ideas
+      // Assert that empty branches come back as empty arrays, not null or missing.
+      const { data: objData } = await executeGraphQL(`
+        mutation { createObjectives(input: [{ name: "Partial Obj", status: ACTIVE }]) { objectives { id } } }
+      `);
+      const objId = objData!.createObjectives.objectives[0].id;
+      await connectToDomain('Objective', objId, domainSlug);
+
+      const { data: oppData } = await executeGraphQL(`
+        mutation {
+          createOpportunities(input: [
+            { name: "Opp A", status: ACTIVE, supports: { connect: [{ where: { node: { id: { eq: "${objId}" } } } }] } },
+            { name: "Opp B", status: ACTIVE, supports: { connect: [{ where: { node: { id: { eq: "${objId}" } } } }] } }
+          ]) { opportunities { id name } }
+        }
+      `);
+      const oppA = oppData!.createOpportunities.opportunities.find((o: { name: string }) => o.name === 'Opp A');
+      const oppB = oppData!.createOpportunities.opportunities.find((o: { name: string }) => o.name === 'Opp B');
+      await connectToDomain('Opportunity', oppA.id, domainSlug);
+      await connectToDomain('Opportunity', oppB.id, domainSlug);
+
+      const { data: ideaData } = await executeGraphQL(`
+        mutation {
+          createIdeas(input: [
+            { name: "Idea A1", status: DRAFT, addresses: { connect: [{ where: { node: { id: { eq: "${oppA.id}" } } } }] } },
+            { name: "Idea A2", status: DRAFT, addresses: { connect: [{ where: { node: { id: { eq: "${oppA.id}" } } } }] } }
+          ]) { ideas { id name } }
+        }
+      `);
+      const ideaA1 = ideaData!.createIdeas.ideas.find((i: { name: string }) => i.name === 'Idea A1');
+      const ideaA2 = ideaData!.createIdeas.ideas.find((i: { name: string }) => i.name === 'Idea A2');
+      await connectToDomain('Idea', ideaA1.id, domainSlug);
+      await connectToDomain('Idea', ideaA2.id, domainSlug);
+
+      const { data: aData } = await executeGraphQL(`
+        mutation { createAssumptions(input: [{ name: "Asm A1a", status: UNTESTED, importance: HIGH, evidence: LOW, assumedBy: { connect: [{ where: { node: { id: { eq: "${ideaA1.id}" } } } }] } }]) { assumptions { id } } }
+      `);
+      await connectToDomain('Assumption', aData!.createAssumptions.assumptions[0].id, domainSlug);
+
+      const { data, errors } = await executeGraphQL(`
+        query {
+          objectiveSubgraph(objectiveId: "${objId}", domainSlug: "${domainSlug}") {
+            name
+            opportunities {
+              name
+              ideas {
+                name
+                assumptions {
+                  name
+                  experiments { name }
+                }
+              }
+            }
+          }
+        }
+      `);
+      expect(errors).toBeUndefined();
+      const sub = data!.objectiveSubgraph;
+      expect(sub.opportunities).toHaveLength(2);
+      const resultOppA = sub.opportunities.find((o: { name: string }) => o.name === 'Opp A');
+      const resultOppB = sub.opportunities.find((o: { name: string }) => o.name === 'Opp B');
+
+      // Opp B has no ideas -> empty array, not missing.
+      expect(resultOppB.ideas).toEqual([]);
+
+      // Opp A has two ideas; A1 has an assumption (with empty experiments), A2 has none.
+      expect(resultOppA.ideas).toHaveLength(2);
+      const resultIdeaA1 = resultOppA.ideas.find((i: { name: string }) => i.name === 'Idea A1');
+      const resultIdeaA2 = resultOppA.ideas.find((i: { name: string }) => i.name === 'Idea A2');
+      expect(resultIdeaA2.assumptions).toEqual([]);
+      expect(resultIdeaA1.assumptions).toHaveLength(1);
+      expect(resultIdeaA1.assumptions[0].name).toBe('Asm A1a');
+      expect(resultIdeaA1.assumptions[0].experiments).toEqual([]);
+    });
   });
 
   describe('orphan queries', () => {
@@ -540,6 +743,30 @@ describe('Custom traversal queries', () => {
         `);
         expect(after.data!.orphanedOpportunities.find((o: { name: string }) => o.name === 'Ex-Orphan')).toBeUndefined();
       });
+
+      it('should report an opportunity as orphaned when its only SUPPORTS edge crosses a domain boundary', async () => {
+        // Opp in domainSlug, supports an objective in otherSlug. From D1's
+        // point of view the cross-domain edge is invisible, so the opp is
+        // orphaned.
+        const otherSlug = testDomain();
+        await seedDomain(otherSlug);
+
+        const { data: objData } = await executeGraphQL(`
+          mutation { createObjectives(input: [{ name: "Cross Objective", status: ACTIVE }]) { objectives { id } } }
+        `);
+        const crossObjId = objData!.createObjectives.objectives[0].id;
+        await connectToDomain('Objective', crossObjId, otherSlug);
+
+        const { data: oppData } = await executeGraphQL(`
+          mutation { createOpportunities(input: [{ name: "Cross-Supported Opp", status: ACTIVE, supports: { connect: [{ where: { node: { id: { eq: "${crossObjId}" } } } }] } }]) { opportunities { id } } }
+        `);
+        await connectToDomain('Opportunity', oppData!.createOpportunities.opportunities[0].id, domainSlug);
+
+        const { data } = await executeGraphQL(`
+          query { orphanedOpportunities(domainSlug: "${domainSlug}") { name } }
+        `);
+        expect(data!.orphanedOpportunities.find((o: { name: string }) => o.name === 'Cross-Supported Opp')).toBeDefined();
+      });
     });
 
     describe('unrootedIdeas', () => {
@@ -624,6 +851,30 @@ describe('Custom traversal queries', () => {
           query { unrootedIdeas(domainSlug: "${domainSlug}") { name } }
         `);
         expect(after.data!.unrootedIdeas.find((i: { name: string }) => i.name === 'Ex-Unrooted Idea')).toBeUndefined();
+      });
+
+      it('should report an idea as unrooted when its only ADDRESSES edge crosses a domain boundary', async () => {
+        // Idea in domainSlug, addresses an opportunity in otherSlug. The
+        // cross-domain edge is invisible on read, so the idea is unrooted
+        // from D1's point of view.
+        const otherSlug = testDomain();
+        await seedDomain(otherSlug);
+
+        const { data: oppData } = await executeGraphQL(`
+          mutation { createOpportunities(input: [{ name: "Cross Opportunity", status: ACTIVE }]) { opportunities { id } } }
+        `);
+        const crossOppId = oppData!.createOpportunities.opportunities[0].id;
+        await connectToDomain('Opportunity', crossOppId, otherSlug);
+
+        const { data: ideaData } = await executeGraphQL(`
+          mutation { createIdeas(input: [{ name: "Cross-Addressing Idea", status: DRAFT, addresses: { connect: [{ where: { node: { id: { eq: "${crossOppId}" } } } }] } }]) { ideas { id } } }
+        `);
+        await connectToDomain('Idea', ideaData!.createIdeas.ideas[0].id, domainSlug);
+
+        const { data } = await executeGraphQL(`
+          query { unrootedIdeas(domainSlug: "${domainSlug}") { name } }
+        `);
+        expect(data!.unrootedIdeas.find((i: { name: string }) => i.name === 'Cross-Addressing Idea')).toBeDefined();
       });
     });
 
@@ -710,6 +961,30 @@ describe('Custom traversal queries', () => {
           query { unrootedAssumptions(domainSlug: "${domainSlug}") { name } }
         `);
         expect(after.data!.unrootedAssumptions.find((a: { name: string }) => a.name === 'Ex-Floating')).toBeUndefined();
+      });
+
+      it('should report an assumption as unrooted when its only ASSUMED_BY edge crosses a domain boundary', async () => {
+        // Assumption in domainSlug, ASSUMED_BY an idea in otherSlug. The
+        // cross-domain edge is invisible on read, so the assumption is
+        // unrooted from D1's point of view.
+        const otherSlug = testDomain();
+        await seedDomain(otherSlug);
+
+        const { data: ideaData } = await executeGraphQL(`
+          mutation { createIdeas(input: [{ name: "Cross Idea", status: DRAFT }]) { ideas { id } } }
+        `);
+        const crossIdeaId = ideaData!.createIdeas.ideas[0].id;
+        await connectToDomain('Idea', crossIdeaId, otherSlug);
+
+        const { data: aData } = await executeGraphQL(`
+          mutation { createAssumptions(input: [{ name: "Cross-Rooted Asm", status: UNTESTED, importance: HIGH, evidence: LOW, assumedBy: { connect: [{ where: { node: { id: { eq: "${crossIdeaId}" } } } }] } }]) { assumptions { id } } }
+        `);
+        await connectToDomain('Assumption', aData!.createAssumptions.assumptions[0].id, domainSlug);
+
+        const { data } = await executeGraphQL(`
+          query { unrootedAssumptions(domainSlug: "${domainSlug}") { name } }
+        `);
+        expect(data!.unrootedAssumptions.find((a: { name: string }) => a.name === 'Cross-Rooted Asm')).toBeDefined();
       });
     });
   });
