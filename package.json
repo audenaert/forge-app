@@ -13,7 +13,8 @@
     "test": "turbo test",
     "test:integration": "vitest run",
     "typecheck": "turbo typecheck",
-    "lint": "turbo lint"
+    "lint": "turbo lint",
+    "seed": "tsx scripts/seed.ts"
   },
   "engines": {
     "node": ">=22"
