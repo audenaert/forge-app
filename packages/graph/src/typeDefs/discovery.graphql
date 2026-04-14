@@ -112,6 +112,40 @@ type OpportunitySubgraph {
   ideas: [IdeaWithAssumptions!]!
 }
 
+type OpportunityWithIdeas {
+  id: ID!
+  name: String!
+  status: OpportunityStatus!
+  hmw: String
+  ideas: [IdeaWithAssumptions!]!
+}
+
+type ObjectiveSubgraphResult {
+  id: ID!
+  name: String!
+  status: ObjectiveStatus!
+  body: String
+  opportunities: [OpportunityWithIdeas!]!
+}
+
+type ParentIdeaRef {
+  id: ID!
+  name: String!
+  status: IdeaStatus!
+}
+
+type UntestedAssumptionWithContext {
+  id: ID!
+  name: String!
+  status: AssumptionStatus!
+  importance: AssumptionImportance!
+  evidence: AssumptionEvidence!
+  body: String
+  createdAt: DateTime!
+  updatedAt: DateTime
+  parentIdea: ParentIdeaRef
+}
+
 type DiscoveryHealth {
   totalObjectives: Int!
   totalOpportunities: Int!
@@ -126,19 +160,24 @@ type DiscoveryHealth {
 # --- Custom traversal queries ---
 
 type Query {
+  # Domain scoping: every nested level is re-scoped to the queried domain.
+  # Cross-domain edges (e.g., an Idea in D2 that ADDRESSES an Opportunity in D1)
+  # are invisible to this query — they are treated as if they do not exist.
+  # This matches the product invariant that OST relationships belong within a
+  # single domain and aligns opportunitySubgraph with objectiveSubgraph.
   opportunitySubgraph(opportunityId: ID!, domainSlug: String!): OpportunitySubgraph
     @cypher(
       statement: """
-      MATCH (opp:Opportunity {id: $opportunityId})-[:BELONGS_TO]->(:Domain {slug: $domainSlug})
+      MATCH (opp:Opportunity {id: $opportunityId})-[:BELONGS_TO]->(d:Domain {slug: $domainSlug})
       CALL {
-        WITH opp
-        OPTIONAL MATCH (opp)<-[:ADDRESSES]-(idea:Idea)
+        WITH opp, d
+        OPTIONAL MATCH (opp)<-[:ADDRESSES]-(idea:Idea)-[:BELONGS_TO]->(d)
         CALL {
-          WITH idea
-          OPTIONAL MATCH (idea)<-[:ASSUMED_BY]-(assumption:Assumption)
+          WITH idea, d
+          OPTIONAL MATCH (idea)<-[:ASSUMED_BY]-(assumption:Assumption)-[:BELONGS_TO]->(d)
           CALL {
-            WITH assumption
-            OPTIONAL MATCH (assumption)<-[:TESTS]-(exp:Experiment)
+            WITH assumption, d
+            OPTIONAL MATCH (assumption)<-[:TESTS]-(exp:Experiment)-[:BELONGS_TO]->(d)
             RETURN collect(exp { .id, .name, .status, .method, .result }) AS experiments
           }
           RETURN collect(assumption { .id, .name, .status, .importance, .evidence, experiments: experiments }) AS assumptions
@@ -150,13 +189,107 @@ type Query {
       columnName: "result"
     )
 
-  untestedAssumptions(domainSlug: String!, minImportance: String): [Assumption!]!
+  objectiveSubgraph(objectiveId: ID!, domainSlug: String!): ObjectiveSubgraphResult
     @cypher(
       statement: """
-      MATCH (a:Assumption)-[:BELONGS_TO]->(:Domain {slug: $domainSlug})
+      MATCH (obj:Objective {id: $objectiveId})-[:BELONGS_TO]->(d:Domain {slug: $domainSlug})
+      CALL {
+        WITH obj, d
+        OPTIONAL MATCH (obj)<-[:SUPPORTS]-(opp:Opportunity)-[:BELONGS_TO]->(d)
+        CALL {
+          WITH opp, d
+          OPTIONAL MATCH (opp)<-[:ADDRESSES]-(idea:Idea)-[:BELONGS_TO]->(d)
+          CALL {
+            WITH idea, d
+            OPTIONAL MATCH (idea)<-[:ASSUMED_BY]-(assumption:Assumption)-[:BELONGS_TO]->(d)
+            CALL {
+              WITH assumption, d
+              OPTIONAL MATCH (assumption)<-[:TESTS]-(exp:Experiment)-[:BELONGS_TO]->(d)
+              RETURN collect(exp { .id, .name, .status, .method, .result }) AS experiments
+            }
+            RETURN collect(assumption { .id, .name, .status, .importance, .evidence, experiments: experiments }) AS assumptions
+          }
+          RETURN collect(idea { .id, .name, .status, assumptions: assumptions }) AS ideas
+        }
+        RETURN collect(opp { .id, .name, .status, .hmw, ideas: ideas }) AS opportunities
+      }
+      RETURN obj { .id, .name, .status, .body, opportunities: opportunities } AS result
+      """
+      columnName: "result"
+    )
+
+  # Cartesian-product semantics + cross-domain filtering:
+  # An assumption may be linked to multiple parent ideas via ASSUMED_BY. To keep
+  # the result set "one row per assumption" (what the UI expects), we pick a
+  # single deterministic parent idea per assumption: the earliest-created idea
+  # that belongs to the same domain, tie-broken by idea.id ("first parent"
+  # semantics).
+  #
+  # Cross-domain edges are invisible. An assumption whose only ASSUMED_BY edge
+  # points at an idea in a different domain is treated as if that edge does not
+  # exist. Such an assumption only appears if it has zero parent ideas anywhere
+  # (genuinely unrooted). If it has at least one in-domain parent idea, it
+  # appears with that in-domain idea as `parentIdea`. This matches the product
+  # invariant that OST relationships must belong within a single domain.
+  untestedAssumptions(domainSlug: String!, minImportance: String): [UntestedAssumptionWithContext!]!
+    @cypher(
+      statement: """
+      MATCH (a:Assumption)-[:BELONGS_TO]->(d:Domain {slug: $domainSlug})
       WHERE a.status = 'UNTESTED'
         AND (CASE WHEN $minImportance IS NOT NULL THEN a.importance = $minImportance ELSE true END)
         AND NOT EXISTS { (a)<-[:TESTS]-(:Experiment) }
+        AND (
+          NOT EXISTS { (a)-[:ASSUMED_BY]->(:Idea) }
+          OR EXISTS { (a)-[:ASSUMED_BY]->(:Idea)-[:BELONGS_TO]->(d) }
+        )
+      CALL {
+        WITH a, d
+        OPTIONAL MATCH (a)-[:ASSUMED_BY]->(idea:Idea)-[:BELONGS_TO]->(d)
+        WITH idea ORDER BY idea.createdAt ASC, idea.id ASC
+        LIMIT 1
+        RETURN idea AS parentIdea
+      }
+      WITH a, parentIdea
+      ORDER BY a.importance DESC, a.createdAt ASC
+      RETURN a {
+        .id, .name, .status, .importance, .evidence, .body, .createdAt, .updatedAt,
+        parentIdea: CASE WHEN parentIdea IS NULL THEN NULL ELSE parentIdea { .id, .name, .status } END
+      } AS result
+      """
+      columnName: "result"
+    )
+
+  # Orphan detection is scoped to in-domain parents only. An artifact whose only
+  # parent edge points at a node in a different domain is treated as orphaned
+  # from the queried domain's point of view — cross-domain edges are invisible
+  # on read.
+  orphanedOpportunities(domainSlug: String!): [Opportunity!]!
+    @cypher(
+      statement: """
+      MATCH (o:Opportunity)-[:BELONGS_TO]->(d:Domain {slug: $domainSlug})
+      WHERE NOT EXISTS { (o)-[:SUPPORTS]->(:Objective)-[:BELONGS_TO]->(d) }
+      RETURN o
+      ORDER BY o.createdAt ASC
+      """
+      columnName: "o"
+    )
+
+  unrootedIdeas(domainSlug: String!): [Idea!]!
+    @cypher(
+      statement: """
+      MATCH (i:Idea)-[:BELONGS_TO]->(d:Domain {slug: $domainSlug})
+      WHERE NOT EXISTS { (i)-[:ADDRESSES]->(:Opportunity)-[:BELONGS_TO]->(d) }
+      RETURN i
+      ORDER BY i.createdAt ASC
+      """
+      columnName: "i"
+    )
+
+  unrootedAssumptions(domainSlug: String!): [Assumption!]!
+    @cypher(
+      statement: """
+      MATCH (a:Assumption)-[:BELONGS_TO]->(d:Domain {slug: $domainSlug})
+      WHERE NOT EXISTS { (a)-[:ASSUMED_BY]->(:Idea)-[:BELONGS_TO]->(d) }
       RETURN a
       ORDER BY a.importance DESC, a.createdAt ASC
       """
