@@ -176,17 +176,16 @@ function ScrollWarning({
 }
 
 /**
- * Navigates to the untested-assumptions list view. The route itself
- * (`/assumptions`) is not built in this story — but the health bar must
- * still link to it per the AC, so this renders as a typed router link so
- * the target is registered the moment that route lands.
+ * Navigates to the untested-assumptions list view with the HIGH filter
+ * pre-applied. `/assumptions` is now a registered route with a typed
+ * `importance` search param, so this is a plain typed router link — no
+ * casts needed.
  */
 function AssumptionsWarning({ count }: { count: number }) {
   return (
     <Link
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      to={'/assumptions' as any}
-      search={{ importance: 'HIGH' } as never}
+      to="/assumptions"
+      search={{ importance: 'HIGH' }}
       data-testid="warning-untested-high-importance"
       className={warningPillClass}
       style={warningPillStyle}

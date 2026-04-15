@@ -116,9 +116,8 @@ export function UntestedAssumptionsView({
 
   const handleFilterChange = (next: ImportanceFilter) => {
     navigate({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      to: '/assumptions' as any,
-      search: (next === 'all' ? {} : { importance: next }) as never,
+      to: '/assumptions',
+      search: next === 'all' ? {} : { importance: next },
       replace: true,
     });
   };
