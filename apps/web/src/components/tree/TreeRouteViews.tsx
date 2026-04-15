@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useLayoutEffect, useMemo } from 'react';
 import { useSuspenseQuery } from '@apollo/client';
 import { ObjectiveArtifactPage } from '../artifact/ObjectiveArtifactPage';
 import { OpportunityArtifactPage } from '../artifact/OpportunityArtifactPage';
@@ -60,7 +60,13 @@ export function ObjectiveTreeView({ id }: { id: string }) {
     [orphansData],
   );
 
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) so the rail's `setActive` commit runs
+  // before the browser paints the tree route. With a plain useEffect the
+  // tree view commits once without a rail, then the effect fires, then
+  // <RootShell /> re-renders with the rail — producing a visible one-frame
+  // flash / reflow on the first paint. useLayoutEffect pulls the second
+  // render into the same paint.
+  useLayoutEffect(() => {
     if (!projection) {
       setActive(null);
       return;
@@ -113,7 +119,13 @@ export function OpportunityTreeView({ id }: { id: string }) {
     [orphansData],
   );
 
-  useEffect(() => {
+  // useLayoutEffect (not useEffect) so the rail's `setActive` commit runs
+  // before the browser paints the tree route. With a plain useEffect the
+  // tree view commits once without a rail, then the effect fires, then
+  // <RootShell /> re-renders with the rail — producing a visible one-frame
+  // flash / reflow on the first paint. useLayoutEffect pulls the second
+  // render into the same paint.
+  useLayoutEffect(() => {
     if (!projection) {
       setActive(null);
       return;
