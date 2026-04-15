@@ -18,7 +18,6 @@ import { ExperimentArtifactPage } from './components/artifact/ExperimentArtifact
 import { Dashboard } from './components/dashboard/Dashboard';
 import {
   UntestedAssumptionsView,
-  filterToMinImportance,
   type ImportanceFilter,
 } from './components/assumptions/UntestedAssumptionsView';
 import { TreeRail } from './components/tree/TreeRail';
@@ -305,51 +304,64 @@ interface AssumptionsSearch {
 
 const ASSUMPTIONS_ACTIVE_FILTERS = new Set(['HIGH', 'MEDIUM', 'LOW']);
 
+/**
+ * Single source of truth for the narrow from an arbitrary input to the
+ * three valid importance filter values. Keeping this in one place means
+ * `validateSearch`, `loaderDeps`, and the route component can't drift —
+ * the reviewer on PR #30 flagged the triplicated inline narrow as a
+ * footgun. Returns `undefined` for "no filter", which the route models
+ * as a missing search param rather than an `'all'` sentinel so the
+ * canonical URL for the unfiltered view is plain `/assumptions`.
+ */
+function normalizeImportance(
+  value: unknown,
+): 'HIGH' | 'MEDIUM' | 'LOW' | undefined {
+  if (typeof value === 'string' && ASSUMPTIONS_ACTIVE_FILTERS.has(value)) {
+    return value as 'HIGH' | 'MEDIUM' | 'LOW';
+  }
+  return undefined;
+}
+
 const assumptionsRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/assumptions',
   validateSearch: (search: Record<string, unknown>): AssumptionsSearch => {
-    const raw = search.importance;
-    // Accept the literal strings only. Anything else — including
-    // undefined, empty string, unknown values, or the 'all' sentinel —
-    // collapses to "no filter", which is represented by an empty object
-    // so the param is dropped from the URL.
-    if (typeof raw === 'string' && ASSUMPTIONS_ACTIVE_FILTERS.has(raw)) {
-      return { importance: raw as 'HIGH' | 'MEDIUM' | 'LOW' };
-    }
-    return {};
+    const importance = normalizeImportance(search.importance);
+    // Omit the field entirely for the unfiltered case so the URL drops
+    // the query string — `{}` serializes back to `/assumptions`.
+    return importance ? { importance } : {};
   },
   loaderDeps: ({ search }) => ({
-    // Re-normalize here. `search` is the validated result, but when the
-    // incoming URL has an unknown value TanStack Router still forwards
-    // the raw record into loaderDeps rather than the validated shape —
-    // so we defensively collapse anything that isn't one of the three
-    // active filters back to 'all'.
-    importance:
-      typeof search.importance === 'string' &&
-      ASSUMPTIONS_ACTIVE_FILTERS.has(search.importance)
-        ? (search.importance as ImportanceFilter)
-        : ('all' as ImportanceFilter),
+    // TanStack Router v1.87 forwards the raw search record here rather
+    // than the validated shape — `validateSearch` is a TypeScript
+    // narrow but runtime passthrough for unknown values. Re-running the
+    // normalization with the shared helper guarantees the loader's
+    // cache key and the issued GraphQL variables are the sanitized
+    // importance value (or undefined for "no filter").
+    importance: normalizeImportance(search.importance),
   }),
   loader: async ({ context, deps }) => {
     await context.apolloClient.query({
       query: UntestedAssumptionsDocument,
       variables: {
         domainSlug: DOMAIN_SLUG,
-        minImportance: filterToMinImportance(deps.importance),
+        minImportance: deps.importance,
       },
     });
     return null;
   },
   component: function AssumptionsRoute() {
     const search = assumptionsRoute.useSearch();
-    // Defensive re-normalization — mirrors the loader. See the
-    // comment on `loaderDeps` above.
-    const raw = search.importance;
+    // Re-normalize via the same helper validateSearch / loaderDeps use.
+    // TanStack Router v1.87 forwards the raw search record through
+    // useSearch when the URL carries an unknown value (validateSearch's
+    // narrow is a TypeScript-level assertion, not a runtime filter), so
+    // we cannot trust the static `AssumptionsSearch` shape at runtime.
+    // Mapping undefined back to the UI's `'all'` sentinel keeps the
+    // filter control's state consistent with the filter the loader
+    // actually queried for.
     const filter: ImportanceFilter =
-      typeof raw === 'string' && ASSUMPTIONS_ACTIVE_FILTERS.has(raw)
-        ? (raw as ImportanceFilter)
-        : 'all';
+      normalizeImportance(search.importance) ?? 'all';
     return (
       <ArtifactSuspense>
         <UntestedAssumptionsView filter={filter} />
