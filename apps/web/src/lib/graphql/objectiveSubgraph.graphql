@@ -1,0 +1,32 @@
+query ObjectiveSubgraph($objectiveId: ID!, $domainSlug: String!) {
+  objectiveSubgraph(objectiveId: $objectiveId, domainSlug: $domainSlug) {
+    id
+    name
+    status
+    opportunities {
+      id
+      name
+      status
+      hmw
+      ideas {
+        id
+        name
+        status
+        assumptions {
+          id
+          name
+          status
+          importance
+          evidence
+          experiments {
+            id
+            name
+            status
+            method
+            result
+          }
+        }
+      }
+    }
+  }
+}
