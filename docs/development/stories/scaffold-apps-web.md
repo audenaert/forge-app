@@ -1,7 +1,7 @@
 ---
 name: "Scaffold apps/web workspace"
 type: story
-status: ready
+status: complete
 parent: discovery-explorer
 workstream: web-client
 milestone: m1-web-discovery-explorer

@@ -1,7 +1,7 @@
 ---
 name: "Design tokens and AppShell"
 type: story
-status: blocked
+status: complete
 parent: discovery-explorer
 workstream: web-client
 milestone: m1-web-discovery-explorer
