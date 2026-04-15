@@ -1,0 +1,7 @@
+query UnrootedIdeas($domainSlug: String!) {
+  unrootedIdeas(domainSlug: $domainSlug) {
+    id
+    name
+    status
+  }
+}

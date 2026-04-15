@@ -1,0 +1,12 @@
+query DiscoveryHealth($domainSlug: String!) {
+  discoveryHealth(domainSlug: $domainSlug) {
+    totalObjectives
+    totalOpportunities
+    totalIdeas
+    totalAssumptions
+    totalExperiments
+    untestedHighImportanceAssumptions
+    ideasWithNoAssumptions
+    orphanedOpportunities
+  }
+}
