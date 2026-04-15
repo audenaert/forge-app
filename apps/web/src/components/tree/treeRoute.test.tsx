@@ -183,10 +183,14 @@ describe('Tree projection routes', () => {
       mocks: [objectiveSubgraphMock, orphanedOppsMock, objectiveDetailMock],
     });
 
-    // The AppShell rail slot is mounted.
-    await waitFor(() => {
-      expect(screen.getByTestId('app-shell-tree-rail')).toBeInTheDocument();
-    });
+    // Regression: the rail must be in the DOM on the first render pass of
+    // the tree route, not after a reflow. Previously, `setActive` ran in a
+    // plain `useEffect`, so the AppShell committed once without the rail
+    // before the context update triggered a re-render — producing a
+    // visible flash. The switch to `useLayoutEffect` pulls that second
+    // render inside the same paint. Asserting synchronously (no waitFor)
+    // pins the behaviour.
+    expect(screen.getByTestId('app-shell-tree-rail')).toBeInTheDocument();
 
     // The tree projection inside the rail rendered the objective root.
     expect(screen.getByRole('tree')).toBeInTheDocument();
@@ -224,33 +228,60 @@ describe('Tree projection routes', () => {
     expect(screen.getByTestId('tree-unrooted-empty')).toBeInTheDocument();
   });
 
-  it('serves the subgraph from the Apollo cache without firing a second network op', async () => {
+  it('serves the subgraph from cache on a full router navigation cycle', async () => {
+    // Mirrors the pattern in `components/artifact/cache.test.tsx`: exercise
+    // the full route lifecycle (router.navigate -> loader -> useSuspenseQuery)
+    // by visiting the tree route, navigating away, and navigating back,
+    // then asserting the operation count did not grow on the return visit.
+    // This proves cache reuse across the real route surface, not via a
+    // direct `client.query()` call that trivially hits the cache.
+    //
+    // Each mock has exactly one entry — if the cache fails and the loader
+    // re-fires, MockLink starves and the test fails. That is belt-and-braces
+    // alongside the explicit count assertion.
     const onRequest = vi.fn();
-    const { client } = await renderWithApp(null, {
-      path: '/tree/objective/obj-1',
+    const { router } = await renderWithApp(null, {
+      // Start at "/" so the first visit to the tree route is itself a
+      // navigation, matching both reads through the same code path.
+      path: '/',
       mocks: [objectiveSubgraphMock, orphanedOppsMock, objectiveDetailMock],
       onRequest,
+    });
+
+    // First navigation into the tree route.
+    await act(async () => {
+      await router.navigate({
+        to: '/tree/objective/$id',
+        params: { id: 'obj-1' },
+      });
     });
 
     await waitFor(() => {
       expect(screen.getByTestId('tree-node-obj-1')).toBeInTheDocument();
     });
 
-    // Three queries fire on the loader: subgraph, orphans, and the
-    // objective detail. Each should run exactly once.
-    const initialOps = onRequest.mock.calls.length;
-    expect(initialOps).toBe(3);
+    // Three queries fire on the loader: subgraph, orphans, and objective
+    // detail. Each runs exactly once on first visit.
+    expect(onRequest).toHaveBeenCalledTimes(3);
 
-    // Re-issue the subgraph query directly — Apollo's normalized cache
-    // should return synchronously and never reach the (mock) network.
+    // Navigate to a different route so the next visit is a real route
+    // change. The placeholder "/" makes no Apollo queries.
     await act(async () => {
-      const result = await client.query({
-        query: ObjectiveSubgraphDocument,
-        variables: { objectiveId: 'obj-1', domainSlug: 'seed' },
-      });
-      expect(result.data.objectiveSubgraph?.id).toBe('obj-1');
+      await router.navigate({ to: '/' });
     });
 
-    expect(onRequest.mock.calls.length).toBe(initialOps);
+    // Navigate back to the same tree route — cache hit, no new ops.
+    await act(async () => {
+      await router.navigate({
+        to: '/tree/objective/$id',
+        params: { id: 'obj-1' },
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('tree-node-obj-1')).toBeInTheDocument();
+    });
+
+    expect(onRequest).toHaveBeenCalledTimes(3);
   });
 });
