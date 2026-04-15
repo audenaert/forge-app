@@ -1,6 +1,6 @@
 import { Suspense, type ReactNode } from 'react';
 import {
-  createRootRoute,
+  createRootRouteWithContext,
   createRoute,
   createRouter,
   createMemoryHistory,
@@ -34,14 +34,22 @@ import {
  * component mounts, so the per-type wrapper's useSuspenseQuery resolves
  * synchronously when the cache is populated. Every artifact route wraps
  * its content in a Suspense boundary with a shell-aware fallback.
+ *
+ * Loaders read the Apollo client from the typed router context, which
+ * `createAppRouter` populates with either the production client or a
+ * test-supplied mock. This keeps DI explicit and per-router-isolated
+ * rather than relying on a module-level binding.
  */
 
-// Apollo client used by route loaders. Tests can override via
-// `createAppRouter({ apolloClient })` — by default the production client
-// from ./lib/apollo is used.
-let loaderClient: ApolloClient<object> = defaultApolloClient;
+// Router context type. Loaders read the Apollo client off `context`
+// rather than reaching for a module-level binding — this is the idiomatic
+// TanStack Router DI surface, and it gives us per-router isolation so
+// tests don't share global state across cases.
+export interface RouterContext {
+  apolloClient: ApolloClient<object>;
+}
 
-const rootRoute = createRootRoute({
+const rootRoute = createRootRouteWithContext<RouterContext>()({
   component: RootLayout,
 });
 
@@ -106,8 +114,8 @@ function ArtifactSuspense({ children }: { children: ReactNode }) {
 const objectiveRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/objective/$id',
-  loader: async ({ params }) => {
-    await loaderClient.query({
+  loader: async ({ params, context }) => {
+    await context.apolloClient.query({
       query: ObjectiveDetailDocument,
       variables: { id: params.id },
     });
@@ -126,8 +134,8 @@ const objectiveRoute = createRoute({
 const opportunityRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/opportunity/$id',
-  loader: async ({ params }) => {
-    await loaderClient.query({
+  loader: async ({ params, context }) => {
+    await context.apolloClient.query({
       query: OpportunityDetailDocument,
       variables: { id: params.id },
     });
@@ -146,8 +154,8 @@ const opportunityRoute = createRoute({
 const ideaRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/idea/$id',
-  loader: async ({ params }) => {
-    await loaderClient.query({
+  loader: async ({ params, context }) => {
+    await context.apolloClient.query({
       query: IdeaDetailDocument,
       variables: { id: params.id },
     });
@@ -166,8 +174,8 @@ const ideaRoute = createRoute({
 const assumptionRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/assumption/$id',
-  loader: async ({ params }) => {
-    await loaderClient.query({
+  loader: async ({ params, context }) => {
+    await context.apolloClient.query({
       query: AssumptionDetailDocument,
       variables: { id: params.id },
     });
@@ -186,8 +194,8 @@ const assumptionRoute = createRoute({
 const experimentRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/experiment/$id',
-  loader: async ({ params }) => {
-    await loaderClient.query({
+  loader: async ({ params, context }) => {
+    await context.apolloClient.query({
       query: ExperimentDetailDocument,
       variables: { id: params.id },
     });
@@ -217,11 +225,10 @@ export function createAppRouter(options?: {
   initialEntries?: string[];
   apolloClient?: ApolloClient<object>;
 }) {
-  if (options?.apolloClient) {
-    loaderClient = options.apolloClient;
-  }
+  const apolloClient = options?.apolloClient ?? defaultApolloClient;
   return createRouter({
     routeTree,
+    context: { apolloClient },
     history:
       options?.memory || options?.initialEntries
         ? createMemoryHistory({
