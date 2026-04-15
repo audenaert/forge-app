@@ -1,10 +1,11 @@
-import { Suspense, type ReactNode } from 'react';
+import { Suspense, useMemo, type ReactNode } from 'react';
 import {
   createRootRouteWithContext,
   createRoute,
   createRouter,
   createMemoryHistory,
   Outlet,
+  useRouterState,
 } from '@tanstack/react-router';
 import type { ApolloClient } from '@apollo/client';
 import { AppShell } from './components/layout/AppShell';
@@ -15,18 +16,27 @@ import { IdeaArtifactPage } from './components/artifact/IdeaArtifactPage';
 import { AssumptionArtifactPage } from './components/artifact/AssumptionArtifactPage';
 import { ExperimentArtifactPage } from './components/artifact/ExperimentArtifactPage';
 import { Dashboard } from './components/dashboard/Dashboard';
+import { TreeRail } from './components/tree/TreeRail';
+import {
+  ObjectiveTreeView,
+  OpportunityTreeView,
+} from './components/tree/TreeRouteViews';
 import { client as defaultApolloClient } from './lib/apollo';
-import { DOMAIN_SLUG } from './lib/domain';
+import { DOMAIN_SLUG, getDomainSlug } from './lib/domain';
+import { TreeRailProvider, useTreeRail } from './lib/treeRailContext';
+import { allNodes } from './lib/treeProjection';
 import {
   ObjectiveDetailDocument,
+  ObjectiveSubgraphDocument,
   OpportunityDetailDocument,
+  OpportunitySubgraphDocument,
+  OrphanedOpportunitiesDocument,
+  UnrootedIdeasDocument,
   IdeaDetailDocument,
   AssumptionDetailDocument,
   ExperimentDetailDocument,
   DiscoveryHealthDocument,
   ObjectivesWithOpportunitiesDocument,
-  OrphanedOpportunitiesDocument,
-  UnrootedIdeasDocument,
   UnrootedAssumptionsDocument,
 } from './lib/graphql/generated/graphql';
 
@@ -40,7 +50,65 @@ const rootRoute = createRootRouteWithContext<RouterContext>()({
 
 function RootLayout() {
   return (
-    <AppShell sidebar={<RoutedSidebar />}>
+    <TreeRailProvider>
+      <RootShell />
+    </TreeRailProvider>
+  );
+}
+
+/**
+ * Decides whether the AppShell renders its optional tree rail. The rail is
+ * shown when:
+ *   - the user is on a `/tree/...` route (the tree route always shows it), or
+ *   - the user is on an artifact page whose id is part of the loaded
+ *     subgraph (so navigating from a tree node to an artifact preserves
+ *     orientation).
+ *
+ * Anywhere else — including artifact pages reached from outside a tree
+ * projection — the rail collapses. This is the policy described in the
+ * tree-projection-view AC and in the spec's "Tree projection" section.
+ */
+function RootShell() {
+  const { active } = useTreeRail();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const params = useRouterState({ select: (s) => s.matches[s.matches.length - 1]?.params });
+
+  const onTreeRoute = pathname.startsWith('/tree/');
+  // The id of whatever artifact is currently being viewed in the main
+  // content area. For `/tree/...` routes, it's the root id from the URL.
+  // For `/idea/abc` etc., it's the id from the artifact route's params.
+  const selectedId = (() => {
+    const p = (params ?? {}) as Record<string, string>;
+    return p.id ?? null;
+  })();
+
+  // The rail is mounted (and the tree highlight tracks the selection) when
+  // the active subgraph contains the currently-routed artifact OR when the
+  // user is on the tree route itself.
+  const railNode = useMemo(() => {
+    if (!active) return null;
+    if (!onTreeRoute) {
+      // On a non-tree route — only keep the rail visible if the selected
+      // artifact is actually inside the loaded subgraph.
+      const ids = new Set(allNodes(active.root).map((n) => n.id));
+      if (!selectedId || !ids.has(selectedId)) return null;
+    }
+    return (
+      <TreeRail
+        heading={
+          active.rootType === 'objective' ? 'Tree: Objective' : 'Tree: Opportunity'
+        }
+        root={active.root}
+        selectedId={selectedId}
+        unrooted={active.unrooted}
+        unrootedLabel={active.unrootedLabel}
+        unrootedEmptyMessage={active.unrootedEmptyMessage}
+      />
+    );
+  }, [active, onTreeRoute, selectedId]);
+
+  return (
+    <AppShell sidebar={<RoutedSidebar />} treeRail={railNode}>
       <Outlet />
     </AppShell>
   );
@@ -209,6 +277,82 @@ const experimentRoute = createRoute({
   },
 });
 
+/**
+ * Tree-projection routes.
+ *
+ * Each route loader fires three queries in parallel: the subgraph traversal
+ * (which warms the cache the rail consumes), the corresponding orphan
+ * query (which feeds the "Unrooted at this level" disclosure), and the
+ * artifact detail query for the root node (which warms the artifact-page
+ * cache used by the main content area on the initial render). The route
+ * component then projects the subgraph into a normalized TreeNode tree,
+ * installs it into the TreeRailContext via an effect, and renders the
+ * appropriate artifact page in the main content area. Subsequent
+ * navigation to artifact pages whose id is in the loaded subgraph keeps
+ * the rail visible — that policy lives in <RootShell />.
+ */
+const objectiveTreeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/tree/objective/$id',
+  loader: async ({ params, context }) => {
+    const domainSlug = getDomainSlug();
+    await Promise.all([
+      context.apolloClient.query({
+        query: ObjectiveSubgraphDocument,
+        variables: { objectiveId: params.id, domainSlug },
+      }),
+      context.apolloClient.query({
+        query: OrphanedOpportunitiesDocument,
+        variables: { domainSlug },
+      }),
+      context.apolloClient.query({
+        query: ObjectiveDetailDocument,
+        variables: { id: params.id },
+      }),
+    ]);
+    return null;
+  },
+  component: function ObjectiveTreeRoute() {
+    const { id } = objectiveTreeRoute.useParams();
+    return (
+      <ArtifactSuspense>
+        <ObjectiveTreeView id={id} />
+      </ArtifactSuspense>
+    );
+  },
+});
+
+const opportunityTreeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/tree/opportunity/$id',
+  loader: async ({ params, context }) => {
+    const domainSlug = getDomainSlug();
+    await Promise.all([
+      context.apolloClient.query({
+        query: OpportunitySubgraphDocument,
+        variables: { opportunityId: params.id, domainSlug },
+      }),
+      context.apolloClient.query({
+        query: UnrootedIdeasDocument,
+        variables: { domainSlug },
+      }),
+      context.apolloClient.query({
+        query: OpportunityDetailDocument,
+        variables: { id: params.id },
+      }),
+    ]);
+    return null;
+  },
+  component: function OpportunityTreeRoute() {
+    const { id } = opportunityTreeRoute.useParams();
+    return (
+      <ArtifactSuspense>
+        <OpportunityTreeView id={id} />
+      </ArtifactSuspense>
+    );
+  },
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   objectiveRoute,
@@ -216,6 +360,8 @@ const routeTree = rootRoute.addChildren([
   ideaRoute,
   assumptionRoute,
   experimentRoute,
+  objectiveTreeRoute,
+  opportunityTreeRoute,
 ]);
 
 export function createAppRouter(options?: {
