@@ -167,6 +167,13 @@ function defaultMocks(overrides: {
   ];
 }
 
+// Number of distinct GraphQL documents the index-route loader fires in
+// parallel to warm the Apollo cache before `<Dashboard />` mounts. Kept as
+// a named constant so the test breaks with a readable message — not a bare
+// "5 !== 6" — when a query is added or removed. Must match the loader in
+// `router.tsx`.
+const DASHBOARD_LOADER_QUERY_COUNT = 5;
+
 describe('<Dashboard /> route', () => {
   it('warms the cache via a loader and renders inside the AppShell', async () => {
     const onRequest = vi.fn();
@@ -181,8 +188,8 @@ describe('<Dashboard /> route', () => {
     // The dashboard content is present without ever showing the fallback.
     expect(screen.getByTestId('discovery-dashboard')).toBeInTheDocument();
     expect(screen.queryByTestId('dashboard-loading')).not.toBeInTheDocument();
-    // All five queries were fired by the loader (one per document).
-    expect(onRequest).toHaveBeenCalledTimes(5);
+    // All loader queries were fired (one per document, in parallel).
+    expect(onRequest).toHaveBeenCalledTimes(DASHBOARD_LOADER_QUERY_COUNT);
   });
 
   it('renders the five artifact counts in the health bar', async () => {
@@ -237,9 +244,15 @@ describe('<Dashboard /> route', () => {
     expect(untested).toHaveAttribute('href', expect.stringContaining('/assumptions'));
     expect(untested).toHaveTextContent('5');
 
-    // Ideas with no assumptions warning scrolls in-page.
+    // Ideas with no assumptions warning navigates to /ideas — semantically
+    // distinct from the unrooted-ideas section, since an idea with no
+    // assumptions can still be rooted under an opportunity. Route is a
+    // placeholder (see TODO in HealthBar) so we only assert the pathname.
     const noAssumptions = screen.getByTestId('warning-ideas-no-assumptions');
-    expect(noAssumptions).toHaveAttribute('href', '#orphan-ideas');
+    expect(noAssumptions).toHaveAttribute(
+      'href',
+      expect.stringContaining('/ideas'),
+    );
     expect(noAssumptions).toHaveTextContent('3');
 
     // Orphan opps warning scrolls in-page.

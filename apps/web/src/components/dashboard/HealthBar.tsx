@@ -73,11 +73,8 @@ export function HealthBar({
           />
         )}
         {health.ideasWithNoAssumptions > 0 && (
-          <ScrollWarning
-            targetId="orphan-ideas"
+          <IdeasNoAssumptionsWarning
             count={health.ideasWithNoAssumptions}
-            label="ideas with no assumptions"
-            testId="warning-ideas-no-assumptions"
           />
         )}
         {orphanOpportunityCount > 0 && (
@@ -196,6 +193,38 @@ function AssumptionsWarning({ count }: { count: number }) {
     >
       <WarningGlyph />
       <span>{count} untested high-importance assumptions</span>
+    </Link>
+  );
+}
+
+/**
+ * Ideas-with-no-assumptions warning. Semantically distinct from the
+ * unrooted-ideas list rendered inline on the dashboard — an idea with no
+ * assumptions may still be rooted under an opportunity, so routing the
+ * warning to the `#orphan-ideas` section would scroll users to a list
+ * that may not contain the ideas they expected.
+ *
+ * TODO: point at `/ideas?filter=no-assumptions` once the ideas list route
+ * (mirroring `/assumptions`) lands. The schema today exposes only a count
+ * (`DiscoveryHealth.ideasWithNoAssumptions`) — there is no server query
+ * yet that returns the ideas themselves — so adding a dedicated dashboard
+ * section would require a new GraphQL query, which is out of scope here.
+ * Until that route exists, this link is rendered as a typed-router link
+ * to the not-yet-registered path, matching the pattern already used by
+ * `AssumptionsWarning` above.
+ */
+function IdeasNoAssumptionsWarning({ count }: { count: number }) {
+  return (
+    <Link
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      to={'/ideas' as any}
+      search={{ filter: 'no-assumptions' } as never}
+      data-testid="warning-ideas-no-assumptions"
+      className={warningPillClass}
+      style={warningPillStyle}
+    >
+      <WarningGlyph />
+      <span>{count} ideas with no assumptions</span>
     </Link>
   );
 }
