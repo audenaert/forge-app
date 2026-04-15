@@ -1,0 +1,21 @@
+query IdeaDetail($id: ID!) {
+  ideas(where: { id: { eq: $id } }) {
+    id
+    name
+    status
+    body
+    createdAt
+    updatedAt
+    addresses {
+      id
+      name
+      status
+    }
+    assumptions {
+      id
+      name
+      status
+      importance
+    }
+  }
+}

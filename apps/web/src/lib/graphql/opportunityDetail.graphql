@@ -1,0 +1,21 @@
+query OpportunityDetail($id: ID!) {
+  opportunities(where: { id: { eq: $id } }) {
+    id
+    name
+    status
+    hmw
+    body
+    createdAt
+    updatedAt
+    supports {
+      id
+      name
+      status
+    }
+    addressedBy {
+      id
+      name
+      status
+    }
+  }
+}

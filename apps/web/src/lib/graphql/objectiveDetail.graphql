@@ -1,0 +1,15 @@
+query ObjectiveDetail($id: ID!) {
+  objectives(where: { id: { eq: $id } }) {
+    id
+    name
+    status
+    body
+    createdAt
+    updatedAt
+    supportedBy {
+      id
+      name
+      status
+    }
+  }
+}

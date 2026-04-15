@@ -1,0 +1,22 @@
+query ExperimentDetail($id: ID!) {
+  experiments(where: { id: { eq: $id } }) {
+    id
+    name
+    status
+    method
+    successCriteria
+    duration
+    effort
+    result
+    learnings
+    body
+    createdAt
+    updatedAt
+    tests {
+      id
+      name
+      status
+      importance
+    }
+  }
+}

@@ -1,0 +1,24 @@
+query AssumptionDetail($id: ID!) {
+  assumptions(where: { id: { eq: $id } }) {
+    id
+    name
+    status
+    importance
+    evidence
+    body
+    createdAt
+    updatedAt
+    assumedBy {
+      id
+      name
+      status
+    }
+    testedBy {
+      id
+      name
+      status
+      method
+      result
+    }
+  }
+}
