@@ -8,43 +8,28 @@ import {
 } from '@tanstack/react-router';
 import type { ApolloClient } from '@apollo/client';
 import { AppShell } from './components/layout/AppShell';
-import { EmptyState } from './components/layout/EmptyState';
 import { RoutedSidebar } from './components/layout/Sidebar';
 import { ObjectiveArtifactPage } from './components/artifact/ObjectiveArtifactPage';
 import { OpportunityArtifactPage } from './components/artifact/OpportunityArtifactPage';
 import { IdeaArtifactPage } from './components/artifact/IdeaArtifactPage';
 import { AssumptionArtifactPage } from './components/artifact/AssumptionArtifactPage';
 import { ExperimentArtifactPage } from './components/artifact/ExperimentArtifactPage';
+import { Dashboard } from './components/dashboard/Dashboard';
 import { client as defaultApolloClient } from './lib/apollo';
+import { DOMAIN_SLUG } from './lib/domain';
 import {
   ObjectiveDetailDocument,
   OpportunityDetailDocument,
   IdeaDetailDocument,
   AssumptionDetailDocument,
   ExperimentDetailDocument,
+  DiscoveryHealthDocument,
+  ObjectivesWithOpportunitiesDocument,
+  OrphanedOpportunitiesDocument,
+  UnrootedIdeasDocument,
+  UnrootedAssumptionsDocument,
 } from './lib/graphql/generated/graphql';
 
-/*
- * Code-based router configuration. File-based routing is deferred — the
- * route tree is small enough that the extra build plugin isn't justified
- * yet.
- *
- * Artifact routes are declared one-per-type. Each one has a loader that
- * warms the Apollo cache with the corresponding detail query before the
- * component mounts, so the per-type wrapper's useSuspenseQuery resolves
- * synchronously when the cache is populated. Every artifact route wraps
- * its content in a Suspense boundary with a shell-aware fallback.
- *
- * Loaders read the Apollo client from the typed router context, which
- * `createAppRouter` populates with either the production client or a
- * test-supplied mock. This keeps DI explicit and per-router-isolated
- * rather than relying on a module-level binding.
- */
-
-// Router context type. Loaders read the Apollo client off `context`
-// rather than reaching for a module-level binding — this is the idiomatic
-// TanStack Router DI surface, and it gives us per-router isolation so
-// tests don't share global state across cases.
 export interface RouterContext {
   apolloClient: ApolloClient<object>;
 }
@@ -61,37 +46,58 @@ function RootLayout() {
   );
 }
 
-function IndexRoute() {
-  // Placeholder dashboard content. The real discovery dashboard lands in
-  // `discovery-dashboard-route`; until then the `/` route tells the user
-  // where they are and how to populate the space.
+function DashboardSuspense({ children }: { children: ReactNode }) {
   return (
-    <EmptyState
-      title="Discovery Explorer"
-      description={
-        <p>
-          This is the discovery explorer for your Etak workspace. Discovery
-          data — objectives, opportunities, ideas, assumptions, and
-          experiments — is currently created via the API or Claude Code.
-          Views for browsing that data arrive in upcoming milestones.
-        </p>
+    <Suspense
+      fallback={
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="dashboard-loading"
+          className="mx-auto max-w-3xl px-8 py-10 text-sm"
+          style={{ color: 'var(--text-tertiary)' }}
+        >
+          Loading dashboard…
+        </div>
       }
-    />
+    >
+      {children}
+    </Suspense>
   );
 }
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
-  component: IndexRoute,
+  loader: async ({ context }) => {
+    const variables = { domainSlug: DOMAIN_SLUG };
+    await Promise.all([
+      context.apolloClient.query({ query: DiscoveryHealthDocument, variables }),
+      context.apolloClient.query({
+        query: ObjectivesWithOpportunitiesDocument,
+        variables,
+      }),
+      context.apolloClient.query({
+        query: OrphanedOpportunitiesDocument,
+        variables,
+      }),
+      context.apolloClient.query({ query: UnrootedIdeasDocument, variables }),
+      context.apolloClient.query({
+        query: UnrootedAssumptionsDocument,
+        variables,
+      }),
+    ]);
+    return null;
+  },
+  component: function IndexRoute() {
+    return (
+      <DashboardSuspense>
+        <Dashboard />
+      </DashboardSuspense>
+    );
+  },
 });
 
-/**
- * Suspense wrapper with a shell-aware fallback. Reused by every artifact
- * route so the loading state is consistent across types. The role="status"
- * + aria-live="polite" pair announces loading to assistive tech without
- * interrupting whatever the user is currently doing.
- */
 function ArtifactSuspense({ children }: { children: ReactNode }) {
   return (
     <Suspense
