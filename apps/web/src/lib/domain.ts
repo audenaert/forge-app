@@ -11,3 +11,13 @@
  */
 export const DOMAIN_SLUG: string =
   (import.meta.env.VITE_DOMAIN_SLUG as string | undefined) ?? 'seed';
+
+/**
+ * Function form of {@link DOMAIN_SLUG}. Exists so consumers that need a
+ * callable (e.g., router context factories that want to defer evaluation,
+ * or tests that want to stub via `vi.spyOn`) have a stable interface. Today
+ * it is a pure getter — there is only one place the slug is derived.
+ */
+export function getDomainSlug(): string {
+  return DOMAIN_SLUG;
+}
