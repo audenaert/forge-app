@@ -1,4 +1,5 @@
 import { Link } from '@tanstack/react-router';
+import type { CSSProperties, ReactNode } from 'react';
 import {
   type ArtifactType,
   labelForArtifactType,
@@ -12,6 +13,20 @@ export interface ArtifactLinkProps {
   name: string;
   status?: string | null;
 }
+
+// Shared visual + a11y attributes for every artifact link variant. Pulled
+// out so the per-type Link elements stay focused on the typed `to`/`params`
+// shape that TanStack Router's compile-time checks care about.
+const linkClassName =
+  'group inline-flex items-center gap-2 rounded-sm px-1 py-0.5 text-sm underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2';
+
+// CSS custom property passthrough for the focus ring. CSSProperties
+// doesn't model `--*` vars, so we cast the literal object once here
+// rather than scattering escape hatches across every call site.
+const linkStyle: CSSProperties = {
+  color: 'var(--text-primary)',
+  ['--tw-ring-color' as never]: 'var(--border-focus)',
+};
 
 /**
  * Canonical way to render a link to another artifact. The header of every
@@ -37,33 +52,58 @@ export function ArtifactLink({ type, id, name, status }: ArtifactLinkProps) {
     ? `${typeLabel}: ${name}, status ${statusLabel}`
     : `${typeLabel}: ${name}`;
 
-  // TanStack Router's typed <Link> requires a literal `to` to do type
-  // checks. Because each artifact type has its own registered route, we
-  // pass the concrete path at runtime as a plain string — it resolves
-  // through the router's runtime matcher, which doesn't need the type
-  // discrimination the compile-time variant enforces. This is the trade-
-  // off for having a single primitive that works across all types.
-  const routePath = `/${type}/${encodeURIComponent(id)}` as const;
-
-  return (
-    <Link
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      to={routePath as any}
-      aria-label={accessibleName}
-      data-artifact-type={type}
-      data-artifact-id={id}
-      className="group inline-flex items-center gap-2 rounded-sm px-1 py-0.5 text-sm underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2"
-      style={{
-        color: 'var(--text-primary)',
-        // @ts-expect-error — CSS custom property passthrough for focus ring
-        '--tw-ring-color': 'var(--border-focus)',
-      }}
-    >
+  const inner: ReactNode = (
+    <>
       <ArtifactTypeIcon type={type} aria-hidden="true" />
       <span className="font-medium">{name}</span>
       {statusLabel && <StatusBadge type={type} status={status ?? ''} />}
-    </Link>
+    </>
   );
+
+  const sharedProps = {
+    'aria-label': accessibleName,
+    'data-artifact-type': type,
+    'data-artifact-id': id,
+    className: linkClassName,
+    style: linkStyle,
+  } as const;
+
+  // Five fixed artifact types, five typed <Link> elements. Dispatching
+  // through a switch instead of a runtime-constructed path keeps full
+  // type checking on `to`/`params`, lets TanStack Router handle param
+  // encoding, and removes the `as any` escape hatch.
+  switch (type) {
+    case 'objective':
+      return (
+        <Link to="/objective/$id" params={{ id }} {...sharedProps}>
+          {inner}
+        </Link>
+      );
+    case 'opportunity':
+      return (
+        <Link to="/opportunity/$id" params={{ id }} {...sharedProps}>
+          {inner}
+        </Link>
+      );
+    case 'idea':
+      return (
+        <Link to="/idea/$id" params={{ id }} {...sharedProps}>
+          {inner}
+        </Link>
+      );
+    case 'assumption':
+      return (
+        <Link to="/assumption/$id" params={{ id }} {...sharedProps}>
+          {inner}
+        </Link>
+      );
+    case 'experiment':
+      return (
+        <Link to="/experiment/$id" params={{ id }} {...sharedProps}>
+          {inner}
+        </Link>
+      );
+  }
 }
 
 /**
