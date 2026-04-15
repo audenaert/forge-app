@@ -5,16 +5,21 @@ import { IdeaDetailDocument } from '../../lib/graphql/generated/graphql';
 import { renderWithApp } from '../../test/renderWithApp';
 
 /**
- * Verifies the cache story: Apollo's normalized cache should make revisiting
- * an artifact free of network traffic. We render the idea page twice at the
- * same route (a write-through "navigate" to the same id), and assert the
- * counted operations stay at the expected single fetch. The tap link in
- * createMockedClient counts every operation the client sends, so this
- * survives regressions where a cache config accidentally breaks normalization.
+ * Verifies the cache story end-to-end through the router: revisiting an
+ * artifact should not fire a new network request because Apollo's
+ * normalized cache, populated by the route loader on the first visit,
+ * answers the second visit synchronously.
+ *
+ * The test exercises the full route-level cycle (router.navigate → loader
+ * → useSuspenseQuery) rather than poking client.query directly, so it
+ * guards against regressions in either the loader wiring or cache
+ * normalization. The tap link in createMockedClient counts every operation
+ * the client sends; the assertion is that count == 1 after two navigations
+ * to the same id.
  */
 
 describe('Apollo cache navigation', () => {
-  it('serves a previously loaded artifact from cache without firing a new request', async () => {
+  it('serves a re-navigated artifact from cache without firing a new request', async () => {
     const fixture = {
       __typename: 'Idea',
       id: 'idea-1',
@@ -27,22 +32,29 @@ describe('Apollo cache navigation', () => {
       assumptions: [],
     };
 
+    // Exactly one mock for the idea query. If the cache fails and the
+    // loader fires a second fetch, MockLink starves and the test fails —
+    // belt-and-braces alongside the explicit count assertion below.
     const mocks: MockedResponse[] = [
       {
         request: { query: IdeaDetailDocument, variables: { id: 'idea-1' } },
         result: { data: { ideas: [fixture] } },
       },
-      // Second mock intentionally matches nothing — if a fetch fires, this
-      // test fails because MockLink has no more responses. That's the
-      // safety net: the assertion + link starvation together guarantee
-      // the cache-hit path.
     ];
 
     const onRequest = vi.fn();
-    const { client } = await renderWithApp(null, {
-      path: '/idea/idea-1',
+    const { router } = await renderWithApp(null, {
+      // Start at "/" so the first visit to /idea/idea-1 is itself a
+      // navigation, not the initial mount. This way both reads go
+      // through the same router.navigate code path.
+      path: '/',
       mocks,
       onRequest,
+    });
+
+    // First navigation: loader fires once, the page renders.
+    await act(async () => {
+      await router.navigate({ to: '/idea/$id', params: { id: 'idea-1' } });
     });
 
     await waitFor(() => {
@@ -51,21 +63,26 @@ describe('Apollo cache navigation', () => {
       ).toBeInTheDocument();
     });
 
-    // The route loader prefetches once, and useSuspenseQuery then reads
-    // from cache. Exactly one network op should have been counted.
-    const requestsAfterFirstLoad = onRequest.mock.calls.length;
-    expect(requestsAfterFirstLoad).toBe(1);
+    expect(onRequest).toHaveBeenCalledTimes(1);
 
-    // Force a second read of the same query via the Apollo client. It
-    // should resolve from cache — no additional network ops.
+    // Navigate away so the next navigation is a real route change rather
+    // than a no-op. The placeholder dashboard at "/" is fine — it makes
+    // no Apollo queries.
     await act(async () => {
-      const result = await client.query({
-        query: IdeaDetailDocument,
-        variables: { id: 'idea-1' },
-      });
-      expect(result.data.ideas[0].id).toBe('idea-1');
+      await router.navigate({ to: '/' });
     });
 
-    expect(onRequest.mock.calls.length).toBe(requestsAfterFirstLoad);
+    // Second navigation to the same id: cache hit, no additional ops.
+    await act(async () => {
+      await router.navigate({ to: '/idea/$id', params: { id: 'idea-1' } });
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { name: /graph-backed artifact store/i }),
+      ).toBeInTheDocument();
+    });
+
+    expect(onRequest).toHaveBeenCalledTimes(1);
   });
 });

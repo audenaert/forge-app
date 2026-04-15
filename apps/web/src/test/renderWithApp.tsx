@@ -28,6 +28,7 @@ export interface RenderWithAppOptions {
 export interface RenderWithAppResult {
   client: ApolloClient<object>;
   rendered: ReturnType<typeof render>;
+  router: ReturnType<typeof createAppRouter>;
 }
 
 export function createMockedClient(
@@ -70,5 +71,5 @@ export async function renderWithApp(
     </ApolloProvider>,
   );
 
-  return { client, rendered };
+  return { client, rendered, router };
 }
