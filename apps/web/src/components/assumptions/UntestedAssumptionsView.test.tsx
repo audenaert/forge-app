@@ -216,6 +216,43 @@ describe('<UntestedAssumptionsView /> route', () => {
     );
   });
 
+  it('re-issues the GraphQL query (not client-side refiltering) when the filter changes (AC: loader re-runs)', async () => {
+    // Count MockLink operations. The view has no local state store, so
+    // the only way the HIGH-filtered list could appear after clicking
+    // the HIGH button is if the loader re-ran and asked Apollo for new
+    // data. If the filter were applied client-side, the hit count would
+    // not increase on filter change.
+    let requestCount = 0;
+    const { router } = await renderWithApp(null, {
+      path: '/assumptions',
+      mocks: [
+        untestedAssumptionsMock(SAMPLE_ASSUMPTIONS),
+        untestedAssumptionsMock(
+          SAMPLE_ASSUMPTIONS.filter((a) => a.importance === 'HIGH'),
+          'HIGH',
+        ),
+      ],
+      onRequest: () => {
+        requestCount += 1;
+      },
+    });
+
+    // Initial render fired exactly one query (loader warm-up + suspense
+    // query share the cache, so it's a single network hit).
+    expect(requestCount).toBe(1);
+
+    fireEvent.click(screen.getByTestId('importance-filter-HIGH'));
+
+    // Filter change navigates, which runs the loader again with the
+    // new variables — a second network operation.
+    await waitFor(() => {
+      expect(router.state.location.search).toEqual({ importance: 'HIGH' });
+    });
+    await waitFor(() => {
+      expect(requestCount).toBe(2);
+    });
+  });
+
   it('round-trips the filter into the URL when the control changes (AC: filter updates URL)', async () => {
     const { router } = await renderWithApp(null, {
       path: '/assumptions',
