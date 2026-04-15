@@ -6,7 +6,7 @@ import {
   type UntestedAssumptionsQueryVariables,
 } from '../../lib/graphql/generated/graphql';
 import { DOMAIN_SLUG } from '../../lib/domain';
-import { labelForImportance } from '../../lib/enums';
+import { labelForEvidence, labelForImportance } from '../../lib/enums';
 import { ArtifactLink } from '../artifact/ArtifactLink';
 import { EmptyState } from '../layout/EmptyState';
 
@@ -184,7 +184,7 @@ export function UntestedAssumptionsView({
                 style={{ color: 'var(--text-secondary)' }}
               >
                 <span style={{ color: 'var(--text-tertiary)' }}>Evidence: </span>
-                <span>{labelForImportance(assumption.evidence)}</span>
+                <span data-testid="evidence-label">{labelForEvidence(assumption.evidence)}</span>
               </div>
               {assumption.body && (
                 <p

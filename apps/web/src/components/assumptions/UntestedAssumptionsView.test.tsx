@@ -129,14 +129,24 @@ describe('<UntestedAssumptionsView /> route', () => {
       mocks: [untestedAssumptionsMock(SAMPLE_ASSUMPTIONS)],
     });
 
-    const row = screen.getByTestId('assumption-row-a-1');
-    // Importance badge renders the humanized label, not raw SCREAMING_SNAKE.
-    const badge = within(row).getByTestId('importance-badge');
-    expect(badge).toHaveAttribute('data-importance', 'HIGH');
-    expect(badge).toHaveTextContent('High');
-    // Evidence is labeled, not raw.
-    expect(within(row).getByText(/Evidence:/)).toBeInTheDocument();
-    expect(within(row).getByText('Low')).toBeInTheDocument();
+    // Row a-1: importance HIGH, evidence LOW. Row a-2: importance MEDIUM,
+    // evidence MEDIUM. Scoping each assertion to a specific row (and to
+    // the dedicated evidence-label test id) keeps this test honest — an
+    // unscoped `getByText('Low')` would match either the importance badge
+    // or the evidence label, so a regression that swapped one lookup for
+    // the other could slip past.
+    const rowA1 = screen.getByTestId('assumption-row-a-1');
+    const badgeA1 = within(rowA1).getByTestId('importance-badge');
+    expect(badgeA1).toHaveAttribute('data-importance', 'HIGH');
+    expect(badgeA1).toHaveTextContent('High');
+    expect(within(rowA1).getByText(/Evidence:/)).toBeInTheDocument();
+    expect(within(rowA1).getByTestId('evidence-label')).toHaveTextContent('Low');
+
+    const rowA2 = screen.getByTestId('assumption-row-a-2');
+    const badgeA2 = within(rowA2).getByTestId('importance-badge');
+    expect(badgeA2).toHaveAttribute('data-importance', 'MEDIUM');
+    expect(badgeA2).toHaveTextContent('Medium');
+    expect(within(rowA2).getByTestId('evidence-label')).toHaveTextContent('Medium');
   });
 
   it('renders both assumption and parent-idea ArtifactLinks with the right targets (AC: both links)', async () => {
