@@ -1,4 +1,4 @@
-import { Suspense, useMemo, type ReactNode } from 'react';
+import { Suspense, useEffect, useMemo, type ReactNode } from 'react';
 import {
   createRootRouteWithContext,
   createRoute,
@@ -69,7 +69,7 @@ function RootLayout() {
  * tree-projection-view AC and in the spec's "Tree projection" section.
  */
 function RootShell() {
-  const { active } = useTreeRail();
+  const { active, setActive } = useTreeRail();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const params = useRouterState({ select: (s) => s.matches[s.matches.length - 1]?.params });
 
@@ -77,10 +77,31 @@ function RootShell() {
   // The id of whatever artifact is currently being viewed in the main
   // content area. For `/tree/...` routes, it's the root id from the URL.
   // For `/idea/abc` etc., it's the id from the artifact route's params.
+  //
+  // Convention: every id-bearing route names its URL param `id` (see the
+  // `createRoute` calls below — `$id` is used uniformly). Reading `params.id`
+  // off the deepest matched route is therefore enough; if a future route
+  // uses a different param name, destructure it explicitly there and pass
+  // it up via a dedicated context instead of generalising this.
   const selectedId = (() => {
     const p = (params ?? {}) as Record<string, string>;
     return p.id ?? null;
   })();
+
+  // Clear the active projection when the current route is neither a tree
+  // route nor inside the loaded subgraph. Without this, `active` lives on
+  // in React state for the whole session after the first tree visit —
+  // `railNode` correctly hides the rail, but the full TreeNode subgraph
+  // (which can be large) leaks memory until unmount. Gated on "not on a
+  // tree route" so the tree view's own `setActive` on first mount isn't
+  // raced into a clear-then-set cycle.
+  useEffect(() => {
+    if (!active || onTreeRoute) return;
+    const ids = new Set(allNodes(active.root).map((n) => n.id));
+    if (!selectedId || !ids.has(selectedId)) {
+      setActive(null);
+    }
+  }, [active, onTreeRoute, selectedId, setActive]);
 
   // The rail is mounted (and the tree highlight tracks the selection) when
   // the active subgraph contains the currently-routed artifact OR when the
