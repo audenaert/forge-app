@@ -1,26 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { ApolloClient, InMemoryCache } from '@apollo/client';
 
 /**
  * These tests verify the Apollo Client wiring: the uri, the header casing,
  * and the env-var fallbacks. We re-import the module under each scenario with
- * a mocked `import.meta.env` so the module-level link construction picks up
+ * `import.meta.env` mutated so the module-level link construction picks up
  * the right values.
- *
- * Apollo Client does not expose `httpLink.options` publicly; the link stores
- * its config on an internal symbol-like field. We verify wiring indirectly
- * via `client.link` (truthy) plus by inspecting the Link's constructor so
- * regressions that delete or rename the link show up here.
  */
-
-async function loadApolloModule(env: Record<string, string | undefined>) {
-  vi.resetModules();
-  // Vite exposes env vars via `import.meta.env`. In a Vitest/jsdom
-  // environment we can stub it per-test.
-  vi.stubGlobal('import.meta', { env });
-  // Above stub does not work for `import.meta.env` inside ESM modules because
-  // `import.meta` is a lexical binding. Instead, use Vitest's dedicated API.
-  return await import('./apollo');
-}
 
 describe('lib/apollo', () => {
   const ORIGINAL_URL = import.meta.env.VITE_API_URL;
@@ -36,18 +22,16 @@ describe('lib/apollo', () => {
     (import.meta.env as Record<string, unknown>).VITE_API_KEY = ORIGINAL_KEY;
   });
 
-  it('constructs a client with an http link and an in-memory cache', async () => {
+  it('constructs an ApolloClient with an InMemoryCache', async () => {
     (import.meta.env as Record<string, unknown>).VITE_API_URL =
       'http://localhost:4000/graphql';
     (import.meta.env as Record<string, unknown>).VITE_API_KEY = 'test-key';
 
     const mod = await import('./apollo');
-    expect(mod.client).toBeDefined();
-    // Cache must be an InMemoryCache instance; Apollo exposes this via `cache`.
-    expect(mod.client.cache).toBeDefined();
-    // The link is set at construction time. If the import ever removes it,
-    // this assertion will catch the regression.
-    expect(mod.client.link).toBeDefined();
+    // Runtime checks that would actually fail if the factory regressed —
+    // TypeScript can't catch an accidental swap to a different client class.
+    expect(mod.client).toBeInstanceOf(ApolloClient);
+    expect(mod.client.cache).toBeInstanceOf(InMemoryCache);
   });
 
   it('sends requests to VITE_API_URL with a lowercase x-api-key header', async () => {
@@ -151,8 +135,30 @@ describe('lib/apollo', () => {
 
     vi.unstubAllGlobals();
   });
-});
 
-// Suppress the unused helper warning — kept for future tests that need
-// a fully-remounted module with injected env.
-void loadApolloModule;
+  it('warns at module init when VITE_API_KEY is unset', async () => {
+    delete (import.meta.env as Record<string, unknown>).VITE_API_KEY;
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await import('./apollo');
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const [message] = warnSpy.mock.calls[0] as [string];
+    expect(message).toContain('VITE_API_KEY');
+    expect(message).toContain('seed-dev-key');
+    expect(message).toContain('apps/web/.env.local');
+
+    warnSpy.mockRestore();
+  });
+
+  it('does not warn when VITE_API_KEY is set', async () => {
+    (import.meta.env as Record<string, unknown>).VITE_API_KEY = 'seed-dev-key';
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await import('./apollo');
+
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
+  });
+});

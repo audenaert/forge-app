@@ -22,6 +22,12 @@ VITE_API_URL=http://localhost:4000/graphql
 VITE_API_KEY=seed-dev-key
 ```
 
+### Security note — `VITE_API_KEY` is public in the browser bundle
+
+Any environment variable prefixed with `VITE_` is inlined into the production bundle by Vite at build time — these are **not** runtime secrets. `VITE_API_KEY` therefore **must only ever contain a dev-only key** like `seed-dev-key`. Never put a production API key in `.env.local` or in any environment that produces a shipped build: the key will end up in the JavaScript bundle and be readable by anyone who loads the page.
+
+A real production auth story (session cookies, OAuth token exchange, server-side proxy) is a separate future concern.
+
 ## GraphQL codegen
 
 Typed operations are generated from the running API's schema into `src/lib/graphql/generated/`. Generated files are committed so the build does not depend on a running API server.
