@@ -1,0 +1,15 @@
+query UntestedAssumptions($domainSlug: String!, $minImportance: String) {
+  untestedAssumptions(domainSlug: $domainSlug, minImportance: $minImportance) {
+    id
+    name
+    status
+    importance
+    evidence
+    body
+    parentIdea {
+      id
+      name
+      status
+    }
+  }
+}

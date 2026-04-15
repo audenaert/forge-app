@@ -28,6 +28,7 @@ type Documents = {
     "query Sentinel {\n  objectives {\n    id\n  }\n}": typeof types.SentinelDocument,
     "query UnrootedAssumptions($domainSlug: String!) {\n  unrootedAssumptions(domainSlug: $domainSlug) {\n    id\n    name\n    status\n    importance\n  }\n}": typeof types.UnrootedAssumptionsDocument,
     "query UnrootedIdeas($domainSlug: String!) {\n  unrootedIdeas(domainSlug: $domainSlug) {\n    id\n    name\n    status\n  }\n}": typeof types.UnrootedIdeasDocument,
+    "query UntestedAssumptions($domainSlug: String!, $minImportance: String) {\n  untestedAssumptions(domainSlug: $domainSlug, minImportance: $minImportance) {\n    id\n    name\n    status\n    importance\n    evidence\n    body\n    parentIdea {\n      id\n      name\n      status\n    }\n  }\n}": typeof types.UntestedAssumptionsDocument,
 };
 const documents: Documents = {
     "\n        query Test {\n          objectives {\n            id\n          }\n        }\n      ": types.TestDocument,
@@ -44,6 +45,7 @@ const documents: Documents = {
     "query Sentinel {\n  objectives {\n    id\n  }\n}": types.SentinelDocument,
     "query UnrootedAssumptions($domainSlug: String!) {\n  unrootedAssumptions(domainSlug: $domainSlug) {\n    id\n    name\n    status\n    importance\n  }\n}": types.UnrootedAssumptionsDocument,
     "query UnrootedIdeas($domainSlug: String!) {\n  unrootedIdeas(domainSlug: $domainSlug) {\n    id\n    name\n    status\n  }\n}": types.UnrootedIdeasDocument,
+    "query UntestedAssumptions($domainSlug: String!, $minImportance: String) {\n  untestedAssumptions(domainSlug: $domainSlug, minImportance: $minImportance) {\n    id\n    name\n    status\n    importance\n    evidence\n    body\n    parentIdea {\n      id\n      name\n      status\n    }\n  }\n}": types.UntestedAssumptionsDocument,
 };
 
 /**
@@ -116,6 +118,10 @@ export function graphql(source: "query UnrootedAssumptions($domainSlug: String!)
  * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
  */
 export function graphql(source: "query UnrootedIdeas($domainSlug: String!) {\n  unrootedIdeas(domainSlug: $domainSlug) {\n    id\n    name\n    status\n  }\n}"): (typeof documents)["query UnrootedIdeas($domainSlug: String!) {\n  unrootedIdeas(domainSlug: $domainSlug) {\n    id\n    name\n    status\n  }\n}"];
+/**
+ * The graphql function is used to parse GraphQL queries into a document that can be used by GraphQL clients.
+ */
+export function graphql(source: "query UntestedAssumptions($domainSlug: String!, $minImportance: String) {\n  untestedAssumptions(domainSlug: $domainSlug, minImportance: $minImportance) {\n    id\n    name\n    status\n    importance\n    evidence\n    body\n    parentIdea {\n      id\n      name\n      status\n    }\n  }\n}"): (typeof documents)["query UntestedAssumptions($domainSlug: String!, $minImportance: String) {\n  untestedAssumptions(domainSlug: $domainSlug, minImportance: $minImportance) {\n    id\n    name\n    status\n    importance\n    evidence\n    body\n    parentIdea {\n      id\n      name\n      status\n    }\n  }\n}"];
 
 export function graphql(source: string) {
   return (documents as any)[source] ?? {};
