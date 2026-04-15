@@ -44,3 +44,7 @@ CODEGEN_API_URL=http://localhost:4001/graphql CODEGEN_API_KEY=my-key npm run cod
 ```
 
 Re-run `codegen` whenever you add or modify a `.graphql` operation file in `apps/web/src/lib/graphql/`, or when the schema in `packages/graph` changes.
+
+## Further reading
+
+- [M1 Discovery Explorer — Technical Walkthrough](../../docs/development/notebook/m1-discovery-explorer-walkthrough.md) — top-down tour of the system, data flow, route tree, and the code that implements each piece.
