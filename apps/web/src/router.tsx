@@ -16,6 +16,11 @@ import { IdeaArtifactPage } from './components/artifact/IdeaArtifactPage';
 import { AssumptionArtifactPage } from './components/artifact/AssumptionArtifactPage';
 import { ExperimentArtifactPage } from './components/artifact/ExperimentArtifactPage';
 import { Dashboard } from './components/dashboard/Dashboard';
+import {
+  UntestedAssumptionsView,
+  filterToMinImportance,
+  type ImportanceFilter,
+} from './components/assumptions/UntestedAssumptionsView';
 import { TreeRail } from './components/tree/TreeRail';
 import {
   ObjectiveTreeView,
@@ -38,6 +43,7 @@ import {
   DiscoveryHealthDocument,
   ObjectivesWithOpportunitiesDocument,
   UnrootedAssumptionsDocument,
+  UntestedAssumptionsDocument,
 } from './lib/graphql/generated/graphql';
 
 export interface RouterContext {
@@ -278,6 +284,80 @@ const assumptionRoute = createRoute({
   },
 });
 
+/**
+ * `/assumptions` — untested-assumption list with an importance filter.
+ *
+ * The URL is the source of truth for the filter: `?importance=HIGH`,
+ * `MEDIUM`, `LOW`, or omitted for the unfiltered "All" view. The loader
+ * issues `UntestedAssumptionsDocument` with `minImportance` derived from
+ * the validated search, warming the Apollo cache before the suspense
+ * query mounts. Changing the filter re-navigates, which re-runs the
+ * loader with new variables — the cache keys on the variables object,
+ * so each filter has its own entry.
+ *
+ * `importance` is modelled as optional so the All filter drops the
+ * query string from the URL entirely; `validateSearch` returns `{}`
+ * rather than `{ importance: 'all' }` for the unfiltered case.
+ */
+interface AssumptionsSearch {
+  importance?: 'HIGH' | 'MEDIUM' | 'LOW';
+}
+
+const ASSUMPTIONS_ACTIVE_FILTERS = new Set(['HIGH', 'MEDIUM', 'LOW']);
+
+const assumptionsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/assumptions',
+  validateSearch: (search: Record<string, unknown>): AssumptionsSearch => {
+    const raw = search.importance;
+    // Accept the literal strings only. Anything else — including
+    // undefined, empty string, unknown values, or the 'all' sentinel —
+    // collapses to "no filter", which is represented by an empty object
+    // so the param is dropped from the URL.
+    if (typeof raw === 'string' && ASSUMPTIONS_ACTIVE_FILTERS.has(raw)) {
+      return { importance: raw as 'HIGH' | 'MEDIUM' | 'LOW' };
+    }
+    return {};
+  },
+  loaderDeps: ({ search }) => ({
+    // Re-normalize here. `search` is the validated result, but when the
+    // incoming URL has an unknown value TanStack Router still forwards
+    // the raw record into loaderDeps rather than the validated shape —
+    // so we defensively collapse anything that isn't one of the three
+    // active filters back to 'all'.
+    importance:
+      typeof search.importance === 'string' &&
+      ASSUMPTIONS_ACTIVE_FILTERS.has(search.importance)
+        ? (search.importance as ImportanceFilter)
+        : ('all' as ImportanceFilter),
+  }),
+  loader: async ({ context, deps }) => {
+    await context.apolloClient.query({
+      query: UntestedAssumptionsDocument,
+      variables: {
+        domainSlug: DOMAIN_SLUG,
+        minImportance: filterToMinImportance(deps.importance),
+      },
+    });
+    return null;
+  },
+  component: function AssumptionsRoute() {
+    const search = assumptionsRoute.useSearch();
+    // Defensive re-normalization — mirrors the loader. See the
+    // comment on `loaderDeps` above.
+    const raw = search.importance;
+    const filter: ImportanceFilter =
+      typeof raw === 'string' && ASSUMPTIONS_ACTIVE_FILTERS.has(raw)
+        ? (raw as ImportanceFilter)
+        : 'all';
+    return (
+      <ArtifactSuspense>
+        <UntestedAssumptionsView filter={filter} />
+      </ArtifactSuspense>
+    );
+  },
+});
+
 const experimentRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/experiment/$id',
@@ -381,6 +461,7 @@ const routeTree = rootRoute.addChildren([
   ideaRoute,
   assumptionRoute,
   experimentRoute,
+  assumptionsRoute,
   objectiveTreeRoute,
   opportunityTreeRoute,
 ]);
