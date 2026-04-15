@@ -1,0 +1,9 @@
+# Sentinel query — validates the codegen pipeline end to end.
+# This is NOT consumed by any component. Feature queries arrive with their
+# own stories in M1b. When removing this file, ensure at least one other
+# .graphql document exists or codegen will error on "no documents".
+query Sentinel {
+  objectives {
+    id
+  }
+}
