@@ -241,19 +241,12 @@ describe('Tree projection routes', () => {
     // alongside the explicit count assertion.
     const onRequest = vi.fn();
     const { router } = await renderWithApp(null, {
-      // Start at "/" so the first visit to the tree route is itself a
-      // navigation, matching both reads through the same code path.
-      path: '/',
+      // Start directly at the tree route. The dashboard index route ("/")
+      // has its own loader that fires five queries, which would otherwise
+      // pollute the operation count.
+      path: '/tree/objective/obj-1',
       mocks: [objectiveSubgraphMock, orphanedOppsMock, objectiveDetailMock],
       onRequest,
-    });
-
-    // First navigation into the tree route.
-    await act(async () => {
-      await router.navigate({
-        to: '/tree/objective/$id',
-        params: { id: 'obj-1' },
-      });
     });
 
     await waitFor(() => {
@@ -264,13 +257,19 @@ describe('Tree projection routes', () => {
     // detail. Each runs exactly once on first visit.
     expect(onRequest).toHaveBeenCalledTimes(3);
 
-    // Navigate to a different route so the next visit is a real route
-    // change. The placeholder "/" makes no Apollo queries.
+    // Navigate to the objective's own artifact page. Its loader fires
+    // ObjectiveDetailDocument, which is already in the cache from the
+    // tree loader — the tap link should see no new operation.
     await act(async () => {
-      await router.navigate({ to: '/' });
+      await router.navigate({
+        to: '/objective/$id',
+        params: { id: 'obj-1' },
+      });
     });
 
-    // Navigate back to the same tree route — cache hit, no new ops.
+    expect(onRequest).toHaveBeenCalledTimes(3);
+
+    // Navigate back to the tree route — all three queries are cached.
     await act(async () => {
       await router.navigate({
         to: '/tree/objective/$id',
