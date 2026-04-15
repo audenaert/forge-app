@@ -1,0 +1,27 @@
+query OpportunitySubgraph($opportunityId: ID!, $domainSlug: String!) {
+  opportunitySubgraph(opportunityId: $opportunityId, domainSlug: $domainSlug) {
+    id
+    name
+    status
+    hmw
+    ideas {
+      id
+      name
+      status
+      assumptions {
+        id
+        name
+        status
+        importance
+        evidence
+        experiments {
+          id
+          name
+          status
+          method
+          result
+        }
+      }
+    }
+  }
+}
