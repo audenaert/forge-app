@@ -1,0 +1,8 @@
+query OrphanedOpportunities($domainSlug: String!) {
+  orphanedOpportunities(domainSlug: $domainSlug) {
+    id
+    name
+    status
+    hmw
+  }
+}

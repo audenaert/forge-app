@@ -1,0 +1,13 @@
+query ObjectivesWithOpportunities($domainSlug: String!) {
+  objectives(where: { domain: { slug: { eq: $domainSlug } } }) {
+    id
+    name
+    status
+    supportedBy {
+      id
+      name
+      status
+      hmw
+    }
+  }
+}

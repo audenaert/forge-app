@@ -1,0 +1,8 @@
+query UnrootedAssumptions($domainSlug: String!) {
+  unrootedAssumptions(domainSlug: $domainSlug) {
+    id
+    name
+    status
+    importance
+  }
+}
