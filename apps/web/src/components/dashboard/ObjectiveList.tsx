@@ -5,6 +5,22 @@ import { labelForStatus } from '../../lib/enums';
 
 type Objective = ObjectivesWithOpportunitiesQuery['objectives'][number];
 
+// CSS custom property passthrough for the focus ring color. React's
+// CSSProperties type allows custom-property keys only when cast through a
+// loose index; keeping the cast local (and shared within the module) keeps
+// the rest of the file strict and avoids inline `@ts-expect-error` noise.
+const objectiveLinkStyle: React.CSSProperties = {
+  color: 'var(--text-primary)',
+  fontWeight: 700,
+  letterSpacing: '-0.01em',
+  ['--tw-ring-color' as string]: 'var(--border-focus)',
+} as React.CSSProperties;
+
+const viewTreeLinkStyle: React.CSSProperties = {
+  color: 'var(--text-tertiary)',
+  ['--tw-ring-color' as string]: 'var(--border-focus)',
+} as React.CSSProperties;
+
 interface ObjectiveListProps {
   objectives: readonly Objective[];
 }
@@ -74,13 +90,7 @@ function ObjectiveRow({ objective }: { objective: Objective }) {
           to={`/objective/${encodeURIComponent(objective.id)}` as any}
           data-testid={`objective-link-${objective.id}`}
           className="text-base underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2"
-          style={{
-            color: 'var(--text-primary)',
-            fontWeight: 700,
-            letterSpacing: '-0.01em',
-            // @ts-expect-error — CSS custom property passthrough for focus ring
-            '--tw-ring-color': 'var(--border-focus)',
-          }}
+          style={objectiveLinkStyle}
         >
           {objective.name}
         </Link>
@@ -104,11 +114,7 @@ function ObjectiveRow({ objective }: { objective: Objective }) {
           data-testid={`objective-view-tree-${objective.id}`}
           aria-label={`View tree for ${objective.name}`}
           className="text-xs underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2"
-          style={{
-            color: 'var(--text-tertiary)',
-            // @ts-expect-error — CSS custom property passthrough for focus ring
-            '--tw-ring-color': 'var(--border-focus)',
-          }}
+          style={viewTreeLinkStyle}
         >
           View tree
         </Link>

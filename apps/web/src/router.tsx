@@ -46,26 +46,6 @@ function RootLayout() {
   );
 }
 
-function DashboardSuspense({ children }: { children: ReactNode }) {
-  return (
-    <Suspense
-      fallback={
-        <div
-          role="status"
-          aria-live="polite"
-          data-testid="dashboard-loading"
-          className="mx-auto max-w-3xl px-8 py-10 text-sm"
-          style={{ color: 'var(--text-tertiary)' }}
-        >
-          Loading dashboard…
-        </div>
-      }
-    >
-      {children}
-    </Suspense>
-  );
-}
-
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
@@ -91,9 +71,21 @@ const indexRoute = createRoute({
   },
   component: function IndexRoute() {
     return (
-      <DashboardSuspense>
+      <Suspense
+        fallback={
+          <div
+            role="status"
+            aria-live="polite"
+            data-testid="dashboard-loading"
+            className="mx-auto max-w-3xl px-8 py-10 text-sm"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
+            Loading dashboard…
+          </div>
+        }
+      >
         <Dashboard />
-      </DashboardSuspense>
+      </Suspense>
     );
   },
 });
